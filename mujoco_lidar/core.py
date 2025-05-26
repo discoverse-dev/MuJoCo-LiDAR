@@ -139,7 +139,60 @@ class MjLidarSensor:
         # 应用平移
         world_point = world_point + center
         return world_point
-    
+
+    @ti.func
+    def ray_triangle_intersection(self, ray_start: ti.math.vec3, ray_direction: ti.math.vec3, vertex: ti.types.ndarray(dtype=ti.f32, ndim=2)) -> ti.math.vec4:
+        """计算射线与三角形的交点
+        使用Möller-Trumbore算法
+        Args:
+            ray_start: 射线起点
+            ray_direction: 射线方向向量
+            vertex: 三角形的三个顶点，形状为3x3，每行是一个顶点的坐标
+        Returns:
+            vec4(hit_x, hit_y, hit_z, t): 交点坐标和距离，t<0表示未击中
+        """
+        # 返回格式: vec4(hit_x, hit_y, hit_z, t)，t为距离，t<0表示未击中
+        hit_result = ti.math.vec4(0.0, 0.0, 0.0, -1.0)
+
+        # 获取三角形的三个顶点
+        v0 = ti.math.vec3(vertex[0, 0], vertex[0, 1], vertex[0, 2])
+        v1 = ti.math.vec3(vertex[1, 0], vertex[1, 1], vertex[1, 2])
+        v2 = ti.math.vec3(vertex[2, 0], vertex[2, 1], vertex[2, 2])
+        
+        # Möller-Trumbore算法
+        # 计算边向量
+        edge1 = v1 - v0
+        edge2 = v2 - v0
+        
+        # 计算射线方向与edge2的叉积
+        h = ray_direction.cross(edge2)
+        a = edge1.dot(h)
+        
+        # 检查射线是否与三角形平行，以及其他所有条件
+        if ti.abs(a) >= 1e-6:  # 射线不与三角形平行
+            f = 1.0 / a
+            s = ray_start - v0
+            u = f * s.dot(h)
+            
+            # 检查u是否在有效范围内
+            if u >= 0.0 and u <= 1.0:
+                q = s.cross(edge1)
+                v = f * ray_direction.dot(q)
+                
+                # 检查v是否在有效范围内
+                if v >= 0.0 and u + v <= 1.0:
+                    # 计算t（射线参数）
+                    t = f * edge2.dot(q)
+                    
+                    # 如果t>0，表示有有效交点
+                    if t > 1e-6:  # 使用小的阈值避免自相交
+                        # 计算交点坐标
+                        hit_point = ray_start + t * ray_direction
+                        hit_result = ti.math.vec4(hit_point.x, hit_point.y, hit_point.z, t)
+        
+        return hit_result
+        
+
     @ti.func
     def ray_plane_intersection(self, ray_start: ti.math.vec3, ray_direction: ti.math.vec3, center: ti.math.vec3, size: ti.math.vec3, rotation: ti.math.mat3) -> ti.math.vec4:
         """计算射线与平面的交点"""
@@ -546,6 +599,9 @@ class MjLidarSensor:
                     hit_result = self.ray_cylinder_intersection(ray_start, ray_direction, center, size, rotation)
                 elif geom_type == 6:  # BOX
                     hit_result = self.ray_box_intersection(ray_start, ray_direction, center, size, rotation)
+                elif geom_type == 7:  # MESH
+                    # hit_result = self.ray_mesh_intersection(ray_start, ray_direction, center, size, rotation)
+                    pass
                 # 暂不支持HFIELD(1)
 
                 # 检查是否有有效交点，并且是否是最近的
