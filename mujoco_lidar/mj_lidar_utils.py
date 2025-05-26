@@ -10,51 +10,96 @@ def create_demo_scene():
     """创建一个用于测试的mujoco场景，包含所有支持的几何体类型"""
     xml = """
     <mujoco>
-        <worldbody>
-        <light pos="0 0 3" dir="0 0 -1" diffuse="0.8 0.8 0.8"/>
+        <default>
+            <default class="collision">
+                <geom group="0" type="mesh"/>
+            </default>
+        </default>
 
-        <!-- 激光雷达位置 -->
-        <body name="lidar_base" pos="0 0 1">
-            <site name="lidar_site" size="0.005" rgba="1 0 0 1"/>
-        </body>
-        
-        <!-- 平面 -->
-        <geom name="ground" type="plane" size="10 10 0.1" pos="0 0 0" rgba="0.9 0.9 0.9 1"/>
-        <geom name="plane1" type="plane" size="5 5 0.1" pos="6 0 5" euler="0 -60 0" rgba="0.9 0.9 0.9 1"/>
-        <geom name="plane2" type="plane" size="5 3 0.1" pos="-1 -4 3" euler="-90 0 0" rgba="0.9 0.9 0.9 1"/>
-        
-        <!-- 盒子 -->
-        <geom name="box1" type="box" size="0.5 0.5 0.5" pos="2 0 0.5" euler="45 -45 0" rgba="1 0 0 1"/>
-        <geom name="box2" type="box" size="0.3 0.8 0.2" pos="-2 -1 0.2" rgba="1 0 0 0.7"/>
-        <geom name="box3" type="box" size="0.2 0.2 0.3" pos="2.4 -2 0.3" rgba="1 0 0 0.7"/>
-        <geom name="box4" type="box" size="0.2 0.2 0.4" pos="0 -2.2 0.4" rgba="1 0 0 0.7"/>
-        
-        <!-- 球体 -->
-        <geom name="sphere1" type="sphere" size="0.5" pos="0 2 0.5" rgba="0 1 0 1"/>
-        <geom name="sphere2" type="sphere" size="0.3" pos="-1 2 0.3" rgba="0 1 0 0.7"/>
-        
-        <!-- 圆柱体 -->
-        <geom name="cylinder1" type="cylinder" size="0.4 0.6" pos="0 -2 0.4" euler="0 90 0" rgba="0 0 1 1"/>
-        <geom name="cylinder2" type="cylinder" size="0.2 0.3" pos="2 -2 0.3" rgba="0 0 1 0.7"/>
-        
-        <!-- 椭球体 -->
-        <geom name="ellipsoid1" type="ellipsoid" size="0.4 0.3 0.5" pos="3 2 0.5" rgba="1 1 0 1"/>
-        <geom name="ellipsoid2" type="ellipsoid" size="0.2 0.4 0.3" pos="3 -1 0.3" rgba="1 1 0 0.7"/>
-        
-        <!-- 胶囊体 -->
-        <geom name="capsule1" type="capsule" size="0.3 0.5" pos="-3 1 0.8" euler="45 0 0" rgba="1 0 1 1"/>
-        <geom name="capsule2" type="capsule" size="0.2 0.4" pos="-3 -2 0.6" euler="45 0 45" rgba="1 0 1 0.7"/>
-        
-        <!-- 角落放置一组排列的几何体 -->
-        <body pos="-3 3 0">
-            <geom name="corner_box" type="box" size="0.2 0.2 0.2" pos="0 0 0.2" rgba="0.5 0.5 0.5 1"/>
-            <geom name="corner_sphere" type="sphere" size="0.2" pos="0.5 0 0.2" rgba="0.7 0.7 0.7 1"/>
-            <geom name="corner_cylinder" type="cylinder" size="0.2 0.2" pos="0 0.5 0.2" rgba="0.6 0.6 0.6 1"/>
-            <geom name="corner_capsule" type="capsule" size="0.1 0.3" pos="0.5 0.5 0.3" rgba="0.8 0.8 0.8 1" euler="0 1.57 0"/>
-        </body>
+        <asset>
+            <mesh name="eight" file="../../models/eight.obj"/>
+        </asset>
+
+        <worldbody>
+            <light pos="0 0 3" dir="0 0 -1" diffuse="0.8 0.8 0.8"/>
+
+            <!-- mesh -->
+            <geom mesh="eight" pos="0 0 1" euler="0 0 0" rgba="0 1 0 1" class="collision"/>
+            
+            <!-- 激光雷达位置 -->
+            <body name="lidar_base" pos="0 0 1">
+                <site name="lidar_site" size="0.005" rgba="1 0 0 1"/>
+            </body>
+            
+            <!-- 平面 -->
+            <geom name="ground" type="plane" size="10 10 0.1" pos="0 0 0" rgba="0.9 0.9 0.9 1"/>
+            <geom name="plane1" type="plane" size="5 5 0.1" pos="6 0 5" euler="0 -60 0" rgba="0.9 0.9 0.9 1"/>
+            <geom name="plane2" type="plane" size="5 3 0.1" pos="-1 -4 3" euler="-90 0 0" rgba="0.9 0.9 0.9 1"/>
+            
+            <!-- 盒子 -->
+            <geom name="box1" type="box" size="0.5 0.5 0.5" pos="2 0 0.5" euler="45 -45 0" rgba="1 0 0 1"/>
+            <geom name="box2" type="box" size="0.3 0.8 0.2" pos="-2 -1 0.2" rgba="1 0 0 0.7"/>
+            <geom name="box3" type="box" size="0.2 0.2 0.3" pos="2.4 -2 0.3" rgba="1 0 0 0.7"/>
+            <geom name="box4" type="box" size="0.2 0.2 0.4" pos="0 -2.2 0.4" rgba="1 0 0 0.7"/>
+            
+            <!-- 球体 -->
+            <geom name="sphere1" type="sphere" size="0.5" pos="0 2 0.5" rgba="0 1 0 1"/>
+            <geom name="sphere2" type="sphere" size="0.3" pos="-1 2 0.3" rgba="0 1 0 0.7"/>
+            
+            <!-- 圆柱体 -->
+            <geom name="cylinder1" type="cylinder" size="0.4 0.6" pos="0 -2 0.4" euler="0 90 0" rgba="0 0 1 1"/>
+            <geom name="cylinder2" type="cylinder" size="0.2 0.3" pos="2 -2 0.3" rgba="0 0 1 0.7"/>
+            
+            <!-- 椭球体 -->
+            <geom name="ellipsoid1" type="ellipsoid" size="0.4 0.3 0.5" pos="3 2 0.5" rgba="1 1 0 1"/>
+            <geom name="ellipsoid2" type="ellipsoid" size="0.2 0.4 0.3" pos="3 -1 0.3" rgba="1 1 0 0.7"/>
+            
+            <!-- 胶囊体 -->
+            <geom name="capsule1" type="capsule" size="0.3 0.5" pos="-3 1 0.8" euler="45 0 0" rgba="1 0 1 1"/>
+            <geom name="capsule2" type="capsule" size="0.2 0.4" pos="-3 -2 0.6" euler="45 0 45" rgba="1 0 1 0.7"/>
+            
+            <!-- 角落放置一组排列的几何体 -->
+            <body pos="-3 3 0">
+                <geom name="corner_box" type="box" size="0.2 0.2 0.2" pos="0 0 0.2" rgba="0.5 0.5 0.5 1"/>
+                <geom name="corner_sphere" type="sphere" size="0.2" pos="0.5 0 0.2" rgba="0.7 0.7 0.7 1"/>
+                <geom name="corner_cylinder" type="cylinder" size="0.2 0.2" pos="0 0.5 0.2" rgba="0.6 0.6 0.6 1"/>
+                <geom name="corner_capsule" type="capsule" size="0.1 0.3" pos="0.5 0.5 0.3" rgba="0.8 0.8 0.8 1" euler="0 1.57 0"/>
+            </body>
         </worldbody>
     </mujoco>
     """
+
+    xml = """
+    <mujoco>
+        <default>
+            <default class="collision">
+                <geom group="0" type="mesh"/>
+            </default>
+        </default>
+
+        <asset>
+            <mesh name="eight" file="../../models/eight.obj"/>
+        </asset>
+
+        <worldbody>
+            <light pos="0 0 3" dir="0 0 -1" diffuse="0.8 0.8 0.8"/>
+
+            <!-- mesh -->
+            <geom mesh="eight" pos="0 0 1" euler="0 0 0" rgba="0 1 0 1" class="collision"/>
+            
+            <!-- 激光雷达位置 -->
+            <body name="lidar_base" pos="0 0 1">
+                <site name="lidar_site" size="0.005" rgba="1 0 0 1"/>
+            </body>
+            
+            <!-- 平面 -->
+            <geom name="ground" type="plane" size="10 10 0.1" pos="0 0 0" rgba="0.9 0.9 0.9 1"/>
+
+        </worldbody>
+    </mujoco>
+    """
+
+
     model = mujoco.MjModel.from_xml_string(xml)
     data = mujoco.MjData(model)
     # mujoco.mj_saveLastXML("test.xml", model)

@@ -16,7 +16,7 @@ ti.init(
 @ti.data_oriented
 class MjLidarSensor:
 
-    def __init__(self, mj_scene: mujoco.MjvScene, enable_profiling=False, verbose=False):
+    def __init__(self, mj_model: mujoco.MjModel, mj_scene: mujoco.MjvScene, enable_profiling=False, verbose=False):
         """
         初始化LiDAR传感器
         
@@ -32,12 +32,28 @@ class MjLidarSensor:
         if self.verbose:
             print(f"n_geoms: {self.n_geoms}")
 
+        if len(mj_model.mesh_faceadr) > 0:
+            self.face_addr = ti.field(dtype=ti.i32, shape=mj_model.mesh_faceadr.shape)
+            self.face_addr.from_numpy(mj_model.mesh_faceadr)
+            self.face_num = ti.field(dtype=ti.i32, shape=mj_model.mesh_facenum.shape)
+            self.face_num.from_numpy(mj_model.mesh_facenum)
+            self.mesh_face = ti.field(dtype=ti.i32, shape=mj_model.mesh_face.shape)
+            self.mesh_face.from_numpy(mj_model.mesh_face)
+
+            self.vert_addr = ti.field(dtype=ti.i32, shape=mj_model.mesh_vertadr.shape)
+            self.vert_addr.from_numpy(mj_model.mesh_vertadr)
+            self.vert_num = ti.field(dtype=ti.i32, shape=mj_model.mesh_vertnum.shape)
+            self.vert_num.from_numpy(mj_model.mesh_vertnum)
+            self.mesh_vert = ti.field(dtype=ti.f32, shape=mj_model.mesh_vert.shape)
+            self.mesh_vert.from_numpy(mj_model.mesh_vert)
+
         # 预分配所有Taichi字段，避免重复创建
         self.geom_types = ti.field(dtype=ti.i32, shape=(self.n_geoms))
         self.geom_sizes = ti.Vector.field(3, dtype=ti.f32, shape=(self.n_geoms))
         self.geom_positions = ti.Vector.field(3, dtype=ti.f32, shape=(self.n_geoms))
         self.geom_rotations = ti.Matrix.field(3, 3, dtype=ti.f32, shape=(self.n_geoms))  # 修改为矩阵字段
-        
+        self.geom_data_ids = ti.field(dtype=ti.i32, shape=(self.n_geoms))
+
         # 初始化几何体静态数据
         for i in range(self.n_geoms):
             geom = mj_scene.geoms[i]
@@ -47,12 +63,21 @@ class MjLidarSensor:
                 self.geom_types[i] = geom.type
             self.geom_sizes[i] = ti.math.vec3(geom.size[0], geom.size[1], geom.size[2])
             self.geom_positions[i] = ti.math.vec3(geom.pos[0], geom.pos[1], geom.pos[2])
+            self.geom_data_ids[i] = geom.dataid
             # 保存旋转矩阵
             rot_mat = geom.mat.reshape(3, 3)
             for r in range(3):
                 for c in range(3):
                     self.geom_rotations[i][r, c] = rot_mat[r, c]
-        
+        # print(f"self.geom_data_ids = {self.geom_data_ids}")
+        # print(f"self.geom_types    = {self.geom_types}")
+        # mesh_id = self.geom_data_ids[0]
+        # print(f"mesh_id = {mesh_id}")
+        # face_addr = self.face_addr[mesh_id]
+        # print(f"face_addr = {face_addr}")
+
+        # exit(1)
+
         # 预先分配传感器位姿数组
         self.sensor_pose_ti = ti.ndarray(dtype=ti.f32, shape=(4, 4))
         
@@ -141,23 +166,62 @@ class MjLidarSensor:
         return world_point
 
     @ti.func
-    def ray_triangle_intersection(self, ray_start: ti.math.vec3, ray_direction: ti.math.vec3, vertex: ti.types.ndarray(dtype=ti.f32, ndim=2)) -> ti.math.vec4:
+    def ray_mesh_intersection(self, ray_start: ti.math.vec3, ray_direction: ti.math.vec3, mesh_id: ti.i32, center: ti.math.vec3, rotation: ti.math.mat3):
+        # 将光线转换到模型的局部坐标系
+        local_ray_start, local_ray_direction = self.transform_ray_to_local(ray_start, ray_direction, center, rotation)
+
+        distance_min = 1e6  # 足够大的初始值
+        hit_result_min = ti.math.vec4(0.0, 0.0, 0.0, -1.0) # x,y,z,t (t<0 表示未命中)
+
+        mesh_face_offset = self.face_addr[mesh_id]
+        num_faces_for_mesh = self.face_num[mesh_id]
+        mesh_vert_offset = self.vert_addr[mesh_id]
+
+        for k in range(num_faces_for_mesh):
+            current_face_abs_idx = mesh_face_offset + k
+            
+            # 获取构成此面的顶点的局部索引（相对于此网格的顶点列表的起始）
+            v0_idx_local = self.mesh_face[current_face_abs_idx, 0]
+            v1_idx_local = self.mesh_face[current_face_abs_idx, 1]
+            v2_idx_local = self.mesh_face[current_face_abs_idx, 2]
+            
+            # 计算这些顶点在全局 self.mesh_vert 数组中的绝对索引
+            v0_abs_idx = mesh_vert_offset + v0_idx_local
+            v1_abs_idx = mesh_vert_offset + v1_idx_local
+            v2_abs_idx = mesh_vert_offset + v2_idx_local
+            
+            # 从 self.mesh_vert 获取局部坐标系中的顶点坐标
+            # 假设 self.mesh_vert 存储的是 [N_total_verts, 3] 的形状
+            p0_local = ti.math.vec3(self.mesh_vert[v0_abs_idx, 0], self.mesh_vert[v0_abs_idx, 1], self.mesh_vert[v0_abs_idx, 2])
+            p1_local = ti.math.vec3(self.mesh_vert[v1_abs_idx, 0], self.mesh_vert[v1_abs_idx, 1], self.mesh_vert[v1_abs_idx, 2])
+            p2_local = ti.math.vec3(self.mesh_vert[v2_abs_idx, 0], self.mesh_vert[v2_abs_idx, 1], self.mesh_vert[v2_abs_idx, 2])
+            
+            # 在局部坐标系中进行光线-三角形相交测试
+            current_hit_local_space = self.ray_triangle_intersection(local_ray_start, local_ray_direction, p0_local, p1_local, p2_local)
+            
+            if current_hit_local_space.w > 0.0 and current_hit_local_space.w < distance_min:
+                distance_min = current_hit_local_space.w
+                # 计算局部坐标系中的交点
+                hit_point_local_coords = local_ray_start + distance_min * local_ray_direction
+                # 将交点转换回世界坐标系
+                hit_point_world_coords = self.transform_point_to_world(hit_point_local_coords, center, rotation)
+                hit_result_min = ti.math.vec4(hit_point_world_coords.x, hit_point_world_coords.y, hit_point_world_coords.z, distance_min)
+        
+        return hit_result_min
+
+    @ti.func
+    def ray_triangle_intersection(self, ray_start: ti.math.vec3, ray_direction: ti.math.vec3, v0: ti.math.vec3, v1: ti.math.vec3, v2: ti.math.vec3) -> ti.math.vec4:
         """计算射线与三角形的交点
         使用Möller-Trumbore算法
         Args:
             ray_start: 射线起点
             ray_direction: 射线方向向量
-            vertex: 三角形的三个顶点，形状为3x3，每行是一个顶点的坐标
+            v0, v1, v2: 三角形的三个顶点坐标
         Returns:
             vec4(hit_x, hit_y, hit_z, t): 交点坐标和距离，t<0表示未击中
         """
         # 返回格式: vec4(hit_x, hit_y, hit_z, t)，t为距离，t<0表示未击中
         hit_result = ti.math.vec4(0.0, 0.0, 0.0, -1.0)
-
-        # 获取三角形的三个顶点
-        v0 = ti.math.vec3(vertex[0, 0], vertex[0, 1], vertex[0, 2])
-        v1 = ti.math.vec3(vertex[1, 0], vertex[1, 1], vertex[1, 2])
-        v2 = ti.math.vec3(vertex[2, 0], vertex[2, 1], vertex[2, 2])
         
         # Möller-Trumbore算法
         # 计算边向量
@@ -191,8 +255,7 @@ class MjLidarSensor:
                         hit_result = ti.math.vec4(hit_point.x, hit_point.y, hit_point.z, t)
         
         return hit_result
-        
-
+    
     @ti.func
     def ray_plane_intersection(self, ray_start: ti.math.vec3, ray_direction: ti.math.vec3, center: ti.math.vec3, size: ti.math.vec3, rotation: ti.math.mat3) -> ti.math.vec4:
         """计算射线与平面的交点"""
@@ -585,6 +648,7 @@ class MjLidarSensor:
                 center = self.geom_positions[j]
                 size = self.geom_sizes[j]
                 rotation = self.geom_rotations[j]
+                data_id = self.geom_data_ids[j]
                 
                 # 根据几何体类型调用相应的交点计算函数
                 if geom_type == 0:  # PLANE
@@ -600,8 +664,7 @@ class MjLidarSensor:
                 elif geom_type == 6:  # BOX
                     hit_result = self.ray_box_intersection(ray_start, ray_direction, center, size, rotation)
                 elif geom_type == 7:  # MESH
-                    # hit_result = self.ray_mesh_intersection(ray_start, ray_direction, center, size, rotation)
-                    pass
+                    hit_result = self.ray_mesh_intersection(ray_start, ray_direction, data_id, center, rotation)
                 # 暂不支持HFIELD(1)
 
                 # 检查是否有有效交点，并且是否是最近的

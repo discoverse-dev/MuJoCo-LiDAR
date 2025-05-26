@@ -14,7 +14,7 @@ class MjLidarWrapper:
             None, mujoco.MjvCamera(), 
             mujoco.mjtCatBit.mjCAT_ALL.value, self.scene)
 
-        self.lidar_sensor = MjLidarSensor(self.scene, enable_profiling=args.get("enable_profiling", False), verbose=args.get("verbose", False))
+        self.lidar_sensor = MjLidarSensor(mj_model, self.scene, enable_profiling=args.get("enable_profiling", False), verbose=args.get("verbose", False))
         for i in range(self.lidar_sensor.n_geoms):
             if mj_model.geom(self.scene.geoms[i].objid).contype[0] == 0:
                 self.lidar_sensor.geom_types[i] = -1
