@@ -78,7 +78,7 @@ def create_demo_scene():
         </default>
 
         <asset>
-            <mesh name="eight" file="../../models/eight.obj"/>
+            <mesh name="eight" file="../models/eight.obj"/>
         </asset>
 
         <worldbody>
@@ -99,6 +99,10 @@ def create_demo_scene():
     </mujoco>
     """
 
+    wk_dir = os.path.dirname(os.path.abspath(__file__))
+    print(f"wk_dir = {wk_dir}")
+    os.chdir(wk_dir)
+    print("current working dir: ", os.getcwd())
 
     model = mujoco.MjModel.from_xml_string(xml)
     data = mujoco.MjData(model)

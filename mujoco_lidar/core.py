@@ -46,6 +46,21 @@ class MjLidarSensor:
             self.vert_num.from_numpy(mj_model.mesh_vertnum)
             self.mesh_vert = ti.field(dtype=ti.f32, shape=mj_model.mesh_vert.shape)
             self.mesh_vert.from_numpy(mj_model.mesh_vert)
+        else:
+            # 创建空的mesh相关字段以避免AttributeError
+            self.face_addr = ti.field(dtype=ti.i32, shape=(1,))
+            self.face_num = ti.field(dtype=ti.i32, shape=(1,))
+            self.mesh_face = ti.field(dtype=ti.i32, shape=(1, 3))
+            self.vert_addr = ti.field(dtype=ti.i32, shape=(1,))
+            self.vert_num = ti.field(dtype=ti.i32, shape=(1,))
+            self.mesh_vert = ti.field(dtype=ti.f32, shape=(1, 3))
+            # 用零填充这些空字段
+            self.face_addr.fill(0)
+            self.face_num.fill(0)
+            self.mesh_face.fill(0)
+            self.vert_addr.fill(0)
+            self.vert_num.fill(0)
+            self.mesh_vert.fill(0.0)
 
         # 预分配所有Taichi字段，避免重复创建
         self.geom_types = ti.field(dtype=ti.i32, shape=(self.n_geoms))

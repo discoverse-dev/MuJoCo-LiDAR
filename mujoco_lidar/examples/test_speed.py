@@ -1,8 +1,10 @@
 import argparse
 
+import time
 import mujoco
 import numpy as np
 import taichi as ti
+import zhplot # 如果图像显示中文，需要安装zhplot
 import matplotlib.pyplot as plt
 
 from mujoco_lidar.core import MjLidarSensor
@@ -11,8 +13,6 @@ from mujoco_lidar.scan_gen import generate_grid_scan_pattern
 from mujoco_lidar.mj_lidar_utils import create_demo_scene
 
 if __name__ == "__main__":
-    import time
-    import matplotlib.pyplot as plt
     
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='MuJoCo LiDAR传感器演示和性能测试')
@@ -24,11 +24,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     use_english_labels = not args.zh
-    if not use_english_labels:
-        # 设置matplotlib支持中文显示
-        plt.rcParams['font.sans-serif'] = 'simhei'  # 用来正常显示中文标签
-        plt.rcParams['axes.unicode_minus'] = False    # 用来正常显示负号
-    
     # 创建MuJoCo场景
     mj_model, mj_data = create_demo_scene()
     

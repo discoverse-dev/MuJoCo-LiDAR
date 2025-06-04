@@ -58,28 +58,32 @@ points = lidar_sim.get_lidar_points(rays_phi, rays_theta, mj_data)
 lidar_sim_rate = 10
 lidar_sim_cnt = 0
 
-def plot_points_thread():
-    global points, lidar_sim_rate
-    plt.ion()  # 开启交互模式
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.set_box_aspect([1, 1, 0.3])  # 设置三个轴的比例尺相同
-
-    while True:
-        ax.cla()  # 清除当前坐标轴
-        ax.scatter(points[:, 0], points[:, 1], points[:, 2], c=points[:, 2], cmap='viridis', s=3)
-        plt.draw()  # 更新绘图
-        plt.pause(1./lidar_sim_rate)  # 暂停以更新图形
-
-plot_points_thread = threading.Thread(target=plot_points_thread)
-plot_points_thread.start()
-
+# print help
+print("在Mujoco Viewer视图，双击选中MoCap物体（带坐标系的红色透明方块 lidar_site）")
+print("选中后，按住ctrl，按下鼠标右键拖动平移视角")
+print("按住ctrl，按下鼠标左键拖动旋转视角")
 # 主循环
 with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
     # 设置视图模式为site
     viewer.opt.frame = mujoco.mjtFrame.mjFRAME_SITE.value
     viewer.opt.label = mujoco.mjtLabel.mjLABEL_SITE.value
     viewer.cam.distance = 5.
+
+    def plot_points_thread():
+        global points, lidar_sim_rate
+        plt.ion()  # 开启交互模式
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.set_box_aspect([1, 1, 0.3])  # 设置三个轴的比例尺相同
+
+        while viewer.is_running:
+            ax.cla()  # 清除当前坐标轴
+            ax.scatter(points[:, 0], points[:, 1], points[:, 2], c=points[:, 2], cmap='viridis', s=3)
+            plt.draw()  # 更新绘图
+            plt.pause(1./lidar_sim_rate)  # 暂停以更新图形
+
+    plot_points_thread = threading.Thread(target=plot_points_thread)
+    plot_points_thread.start()
 
     while viewer.is_running:
         mujoco.mj_step(mj_model, mj_data)
@@ -103,4 +107,4 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
 
             lidar_sim_cnt += 1
 
-plot_points_thread.join()
+    plot_points_thread.join()
