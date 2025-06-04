@@ -46,7 +46,7 @@ MJ-LiDAR provides two ways to use the library: directly through the core `MjLida
 
 #### Simple Example: Adding LiDAR to a MuJoCo Environment
 
-Here's a complete example `mujoco_lidar/examples/simple_demo.py` showing how to add a LiDAR to a MuJoCo environment and visualize the point cloud:
+Here's a complete example `mujoco_lidar/examples/example_string.py` showing how to add a LiDAR to a MuJoCo environment and visualize the point cloud:
 
 ```python
 import time
@@ -165,12 +165,40 @@ plot_points_thread.join()
 Run the program to see the effects:
 
 ```bash
-python mujoco_lidar/examples/simple_demo.py
+python mujoco_lidar/examples/example_string.py
 
 # In mujoco.viewer, double-click to select the red box where lidar_site is located. Hold Ctrl and right-click drag to move the red box,
 # Hold Ctrl and left-click drag to rotate the red box, while observing the position changes of the lidar points in the `Figure 1` window of matplotlib
 # This shows that the points are relative to the local lidar_site coordinate system, not the global coordinate system
 ```
+
+#### Simple Example: Loading Scene and LiDAR via MJCF File
+
+This example (`mujoco_lidar/examples/example_mjcf.py`) demonstrates how to load a model from an MJCF file. First, you need to define the LiDAR-related `site` in your MJCF file (e.g., `models/demo.xml`):
+```xml
+    <!-- LiDAR -->
+    <body name="your_robot_name" pos="0 0 1" quat="1 0 0 0" mocap="true">
+        <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-9 1e-9 1e-9"/>
+        <site name="lidar_site" size="0.001" type='sphere'/>
+        <geom type="box" size="0.1 0.1 0.1" density="0" contype="0" conaffinity="0" rgba="0.9 0.3 0.3 0.2"/>
+    </body>
+```
+
+Then in the Python script, the main difference is how the model is loaded:
+```python
+# Load MuJoCo model from file
+mj_model = mujoco.MjModel.from_xml_path("../../models/demo.xml")    
+mj_data = mujoco.MjData(mj_model)
+```
+The remaining steps (like generating scan patterns, creating the LiDAR instance, visualization, etc.) are similar to those in the preceding string-based example.
+
+To run the example:
+```bash
+python mujoco_lidar/examples/example_mjcf.py
+```
+
+如果您能手动完成这个添加，`README.md` 文件就能包含这部分新增的内容了。
+
 
 ### Using LiDAR in Your Own MuJoCo Environment
 

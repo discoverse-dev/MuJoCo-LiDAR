@@ -44,9 +44,9 @@ pip install -e .
 
 MJ-LiDAR提供了两种使用方式：直接使用核心的`MjLidarSensor`类或通过更友好的`MjLidarWrapper`包装类。以下示例将展示包装类的使用方法，它更适合初学者。
 
-#### 简单示例：在MuJoCo环境中添加激光雷达
+#### 简单示例：通过字符串定义场景与激光雷达
 
-下面是一个完整的示例`mujoco_lidar/examples/simple_demo.py`，展示如何在MuJoCo环境中添加激光雷达并可视化点云：
+下面是一个完整的示例`mujoco_lidar/examples/example_string.py`，展示如何在MuJoCo环境中通过Python字符串定义场景，并添加激光雷达及可视化点云：
 
 ```python
 import time
@@ -165,11 +165,40 @@ plot_points_thread.join()
 运行程序，查看效果：
 
 ```bash
-python mujoco_lidar/examples/simple_demo.py
+python mujoco_lidar/examples/example_string.py
 
 # 在mujoco.viewer中，双击选中lidar_site所在的红色方块，按住Ctrl键，右键鼠标拖动可以平移红色方块，
 # 按住Ctrl，左键鼠标拖动可以旋转红色方块，同时观察matplotlib的`Figure 1`界面中的lidar点云的位置变化
 # 由此可以发现，points相对的坐标系是本地的lidar_site坐标系，并非全局坐标系
+```
+
+#### 简单示例：通过MJCF文件加载场景与激光雷达
+
+此示例 (`mujoco_lidar/examples/example_mjcf.py`) 演示了如何从MJCF文件加载模型。首先，需要在你的MJCF文件（例如 `models/demo.xml`）中定义激光雷达相关的 `site`，如：
+
+```xml
+    <!-- 激光雷达 -->
+    <body name="your_robot_name" pos="0 0 1" quat="1 0 0 0" mocap="true">
+        <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-9 1e-9 1e-9"/>
+        <site name="lidar_site" size="0.001" type='sphere'/>
+        <geom type="box" size="0.1 0.1 0.1" density="0" contype="0" conaffinity="0" rgba="0.9 0.3 0.3 0.2"/>
+    </body>
+```
+
+然后在Python脚本中，主要的区别在于模型加载方式：
+
+```python
+# 从文件加载MuJoCo模型
+mj_model = mujoco.MjModel.from_xml_path("../../models/demo.xml")    
+mj_data = mujoco.MjData(mj_model)
+```
+
+其余步骤（如生成扫描模式、创建激光雷达实例、可视化等）和`example_string.py`中的方法一致。
+
+运行程序，查看效果：
+
+```bash
+python mujoco_lidar/examples/example_mjcf.py
 ```
 
 ### 在自己的MuJoCo环境中使用激光雷达
