@@ -157,7 +157,7 @@ class LidarVisualizer(Node):
         if args.obj_path and os.path.exists(args.obj_path):
             obj_path = args.obj_path
         else:
-            obj_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../models", "scene.obj")
+            obj_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../models", "scene.obj")
 
         self.lidar = LidarSensor(self.mj_model, site_name="lidar_site", backend="gpu", obj_path=obj_path)
 

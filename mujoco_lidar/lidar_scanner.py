@@ -8,7 +8,7 @@ from tibvh.geometry import ray_triangle_distance
 @ti.data_oriented
 class StaticBVHLidar:
     """静态场景激光雷达扫描器"""
-    def __init__(self, obj_path: str, max_candidates: int = 31):
+    def __init__(self, obj_path: str, max_candidates: int = 32):
         if not os.path.isfile(obj_path):
             raise FileNotFoundError(f"OBJ不存在: {obj_path}")
         self.obj_path = obj_path
@@ -34,7 +34,7 @@ class StaticBVHLidar:
         self.aabb_maxs.from_numpy(aabb_maxs_np)
         self.aabb_manager = AABB(max_n_aabbs=self.n_faces)
         self._fill_aabb_manager()
-        self.lbvh = LBVH(self.aabb_manager, profiling=False)
+        self.lbvh = LBVH(self.aabb_manager, max_candidates=self.max_candidates, profiling=False)
         self.lbvh.build()
         ti.sync()
         self._overflow = ti.field(dtype=ti.i32, shape=())
@@ -142,7 +142,7 @@ class StaticBVHLidar:
                 rot[2, 0] * dir_local.x + rot[2, 1] * dir_local.y + rot[2, 2] * dir_local.z
             ])
             candidates, candidates_count = self.lbvh.collect_intersecting_elements(o, ray_dir)
-            if candidates_count >= self.max_candidates:
+            if candidates_count >= self.max_candidates-1:
                 ti.atomic_add(self._overflow[None], 1)
             best_t = 1e10
             for c in range(candidates_count):

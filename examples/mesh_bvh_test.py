@@ -56,7 +56,7 @@ if __name__ == '__main__':
     phi_ti.from_numpy(phi.astype(np.float32))
 
     # 3. 构建 Lidar（一次 BVH）
-    lidar = StaticBVHLidar(obj_path=obj_path)
+    lidar = StaticBVHLidar(obj_path=obj_path, max_candidates=64)
 
     build_start = time.time()
     lidar.lbvh.build()
