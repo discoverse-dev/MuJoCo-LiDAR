@@ -1,6 +1,0 @@
-[submodule "IsaacGymEnvs"]
-	path = IsaacGymEnvs
-	url = https://github.com/isaac-sim/IsaacGymEnvs.git
-[submodule "IsaacLab"]
-	path = IsaacLab
-	url = git@github.com:isaac-sim/IsaacLab.git
