@@ -4,3 +4,7 @@ __pycache__
 *.pyc
 models/*
 .vscode/*
+
+build/
+*.tar.gz
+isaacgym/
