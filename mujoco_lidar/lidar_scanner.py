@@ -34,7 +34,7 @@ class StaticBVHLidar:
         self.aabb_maxs.from_numpy(aabb_maxs_np)
         self.aabb_manager = AABB(max_n_aabbs=self.n_faces)
         self._fill_aabb_manager()
-        self.lbvh = LBVH(self.aabb_manager, max_candidates=self.max_candidates, profiling=False)
+        self.lbvh = LBVH(self.aabb_manager, profiling=False)
         self.lbvh.build()
         ti.sync()
         self._overflow = ti.field(dtype=ti.i32, shape=())

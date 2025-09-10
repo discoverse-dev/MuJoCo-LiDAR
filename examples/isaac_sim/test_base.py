@@ -151,7 +151,7 @@ while simulation_app.is_running():
         rays_phi,
         rays_theta
     )
-    points = lidar_sensor.get_data_in_world_frame()
+    points = lidar_sensor.get_data_in_local_frame()
     if len(points) == 0:
         num_points = 2000
         radius = 3.0

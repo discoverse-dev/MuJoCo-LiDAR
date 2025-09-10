@@ -25,6 +25,9 @@ from pxr import Gf
 import omni.usd
 from pxr import UsdGeom, Gf
 
+import sys
+# TODO: remove
+sys.path.append("/home/yiyi/Data/github/MuJoCo-LiDAR")
 from mujoco_lidar import (
     LidarSensor, LivoxGenerator,
     generate_vlp32, generate_HDL64, generate_os128
@@ -101,6 +104,12 @@ class SimpleLidarVisualizerIsaac:
         # 配置参数
         self.args = args
         self.running = True
+        
+        # assets_root_path = get_assets_root_path()
+        # if assets_root_path is None:
+        #     carb.log_error("Could not find Isaac Sim assets folder")
+        #     self.sim_app.close()
+        #     sys.exit()
 
 
     def update_visualization(self, points: np.ndarray):
