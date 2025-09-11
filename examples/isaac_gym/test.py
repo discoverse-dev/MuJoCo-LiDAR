@@ -1,32 +1,23 @@
 from isaacgym import gymapi
 from isaacgym import gymutil
 import numpy as np
-
-def draw_lidar_vis(gym, viewer, env):
+from helper import downsample_spherical_points_vectorized
+import pandas as pd
+def draw_lidar_vis(gym, viewer, env, pts):
     """ Draws visualizations for dubugging (slows down simulation a lot).
         Default behaviour: draws height measurement points
     """
     # draw height lines
     
-    sphere_geom = gymutil.WireframeSphereGeometry(0.005, 4, 4, None, color=(0, 1, 0))
+    sphere_geom = gymutil.WireframeSphereGeometry(0.01, 4, 4, None, color=(0, 1, 0))
 
-    # randomly generate
-    x = np.random.uniform(-5, 5)
-    y = np.random.uniform(-5, 5)
-    z = np.random.uniform(-5, 5)
-    sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
-    gymutil.draw_lines(sphere_geom, gym, viewer, env, sphere_pose)
+    # randomly generat
+    for pt in pts:
+        sphere_pose = gymapi.Transform(gymapi.Vec3(pt[0], pt[2], pt[1]), r=None)
+        gymutil.draw_lines(sphere_geom, gym, viewer, env, sphere_pose)
 
 gym = gymapi.acquire_gym()
 sim_params = gymapi.SimParams()
-# sim_params.substeps = 1
-# sim_params.physx.solver_type = 1
-# sim_params.physx.num_position_iterations = 4
-# sim_params.physx.num_velocity_iterations = 1
-# sim_params.physx.num_threads = 32
-# sim_params.physx.use_gpu = 1
-# sim_params.up_axis = gymapi.UP_AXIS_Z
-# sim_params.gravity = gymapi.Vec3(0.0, 0.0, -9.81)
 sim = gym.create_sim(0, 2, gymapi.SIM_FLEX, sim_params)
 
 # configure the ground plane
@@ -55,15 +46,28 @@ lower = gymapi.Vec3(-spacing, 0.0, -spacing)
 upper = gymapi.Vec3(spacing, spacing, spacing)
 
 env = gym.create_env(sim, lower, upper, 8)
-gym.viewer_camera_look_at(viewer, None, gymapi.Vec3(5, 1, 5), gymapi.Vec3(0, 1, 0))
+gym.viewer_camera_look_at(viewer, None, gymapi.Vec3(5, 2, 5), gymapi.Vec3(0, 1, 0))
 
 actor_handle = gym.create_actor(env, asset, pose, "MyActor", 0, 1)
+
+
+
+# load the files
+TOTOAL = 100
+pt_cloud = np.zeros((TOTOAL, 24000, 3))
+for i in range(TOTOAL):
+    df = pd.read_csv(f'/home/yiyi/Data/github/MuJoCo-LiDAR/mujoco_lidar/{i}.csv', header=None)
+    pt_cloud[i] = df.to_numpy()
+
+i = 0
 while not gym.query_viewer_has_closed(viewer):
     gym.clear_lines(viewer)
     
     # Downsampler
-    for i in range(2000):
-        draw_lidar_vis(gym, viewer, env)
+    if i >= 100: 
+        break
+    draw_lidar_vis(gym, viewer, env, pt_cloud[i])
+    i += 1
     # step the physics
     gym.simulate(sim)
     gym.fetch_results(sim, True)

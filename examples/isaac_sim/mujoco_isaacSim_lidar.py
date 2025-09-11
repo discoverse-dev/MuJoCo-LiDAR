@@ -6,12 +6,16 @@ import os
 
 import mujoco
 import mujoco.viewer
+import pandas as pd
 import taichi as ti
 from scipy.spatial.transform import Rotation
-
+from loop_rate_limiters import RateLimiter
 # Isaac Sim/Omniverse imports
 from isaacsim import SimulationApp
-kit = SimulationApp({"headless": False})
+# DONOT MOVE THIS TO THE FRONT OF THE SCRIPT, ISSAC WOULD CRASH
+kit = SimulationApp({"headless": True})
+
+
 import carb
 import omni
 import omni.kit.viewport.utility
@@ -20,6 +24,8 @@ from isaacsim.core.api import SimulationContext
 from isaacsim.core.utils import stage
 from isaacsim.core.utils.extensions import enable_extension
 from isaacsim.storage.native import get_assets_root_path
+from isaacsim.sensors.camera import Camera
+import isaacsim.core.utils.numpy.rotations as rot_utils
 from pxr import Gf
 
 import omni.usd
@@ -33,6 +39,8 @@ from mujoco_lidar import (
     generate_vlp32, generate_HDL64, generate_os128
 )
 from mujoco_lidar.mj_lidar_utils import create_demo_scene, KeyboardListener
+
+# DONOT MOVE THIS TO THE FRONT OF THE SCRIPT, ISSAC WOULD CRASH
 enable_extension("isaacsim.util.debug_draw")
 
 class SimpleLidarVisualizerIsaac:
@@ -41,10 +49,11 @@ class SimpleLidarVisualizerIsaac:
     def __init__(self, args):
         # 启动Isaac Sim
         self.sim_app = kit
+        self.rate = args.rate
         self.stage = omni.usd.get_context().get_stage()
 
         # 创建MuJoCo场景
-        self.mj_model, self.mj_data = create_demo_scene("floor")
+        self.mj_model, self.mj_data = create_demo_scene("demo")
 
         # Set LiDAR type
         self.use_livox_lidar = False
@@ -104,49 +113,70 @@ class SimpleLidarVisualizerIsaac:
         # 配置参数
         self.args = args
         self.running = True
-        
-        # assets_root_path = get_assets_root_path()
-        # if assets_root_path is None:
-        #     carb.log_error("Could not find Isaac Sim assets folder")
-        #     self.sim_app.close()
-        #     sys.exit()
 
 
     def update_visualization(self, points: np.ndarray):
         """更新Isaac Sim中的点云PointInstancer"""
         green_color = (0, 1, 0, 0.75)
         green_size = 4
-        self._debug_draw_clear_points()
+        # self._debug_draw_clear_points()
         self._debug_draw_pointcloud(points, green_color, green_size, clear_existing=True)
 
 
 
     def _debug_draw_clear_points(self):
+        # DONOT MOVE THIS TO THE FRONT OF THE SCRIPT, ISSAC WOULD CRASH
         from isaacsim.util.debug_draw import _debug_draw
-    
+
         draw_iface = _debug_draw.acquire_debug_draw_interface()
         draw_iface.clear_points()
-    
+
     def _debug_draw_pointcloud(self, pointcloud_data, color, size, clear_existing=False):
+        import time
+        t_start = time.time()
         if not (isinstance(pointcloud_data, np.ndarray) and pointcloud_data.ndim == 2 and pointcloud_data.shape[1] == 3):
             print("Warning: pointcloud_data must be a NumPy array with shape (N, 3).")
             return
-    
+        t_check = time.time()
+        if hasattr(self, 'args') and getattr(self.args, 'verbose', False):
+            print(f"[DEBUG] pointcloud_data check took {(t_check-t_start)*1000:.2f}ms")
+
+        # DONOT MOVE THIS TO THE FRONT OF THE SCRIPT, ISSAC WOULD CRASH
         from isaacsim.util.debug_draw import _debug_draw
-    
+        t_import = time.time()
+        if hasattr(self, 'args') and getattr(self.args, 'verbose', False):
+            print(f"[DEBUG] import _debug_draw took {(t_import-t_check)*1000:.2f}ms")
+
         draw_iface = _debug_draw.acquire_debug_draw_interface()
-    
-        points_cloud = []
-        colors_cloud = []
-        sizes_cloud = []
-        for i in range(pointcloud_data.shape[0]):
-            points_cloud.append(pointcloud_data[i].tolist())
-            colors_cloud.append(color)
-            sizes_cloud.append(size)
-    
+        t_iface = time.time()
+        if hasattr(self, 'args') and getattr(self.args, 'verbose', False):
+            print(f"[DEBUG] acquire_debug_draw_interface took {(t_iface-t_import)*1000:.2f}ms")
+
+        # pointcloud_data: (N, 3) numpy array
+        # color: tuple of length 3 or 4 (e.g., (0, 1, 0, 0.75))
+        # size: scalar
+
+        t_np_start = time.time()
+        points_cloud = pointcloud_data
+        colors_cloud = np.tile(np.array(color), (pointcloud_data.shape[0], 1))
+        sizes_cloud = np.full((pointcloud_data.shape[0],), size)
+
+        t_np_end = time.time()
+        if hasattr(self, 'args') and getattr(self.args, 'verbose', False):
+            print(f"[DEBUG] numpy tolist/tile/full took {(t_np_end-t_np_start)*1000:.2f}ms")
+
         if clear_existing:
+            t_clear = time.time()
             self._debug_draw_clear_points()
+            t_clear_end = time.time()
+            if hasattr(self, 'args') and getattr(self.args, 'verbose', False):
+                print(f"[DEBUG] _debug_draw_clear_points took {(t_clear_end-t_clear)*1000:.2f}ms")
+        t_draw = time.time()
         draw_iface.draw_points(points_cloud, colors_cloud, sizes_cloud)
+        t_draw_end = time.time()
+        if hasattr(self, 'args') and getattr(self.args, 'verbose', False):
+            print(f"[DEBUG] draw_points took {(t_draw_end-t_draw)*1000:.2f}ms")
+            print(f"[DEBUG] _debug_draw_pointcloud total: {(t_draw_end-t_start)*1000:.2f}ms")
 
     def _resample_livox_if_needed(self):
         """Resample Livox angles according to backend (keep consistent with ros2 example)"""
@@ -165,45 +195,83 @@ class SimpleLidarVisualizerIsaac:
         step_gap = max(1, 60 // self.args.rate)
         pts_world = None
 
+        assets_root_path = get_assets_root_path()
+        if assets_root_path is None:
+            carb.log_error("Could not find Isaac Sim assets folder")
+            self.sim_app.close()
+            sys.exit()
+        stage.add_reference_to_stage(
+            "/home/yiyi/Data/github/MuJoCo-LiDAR/models/scene.usd", "/background"
+        )
+        rate = RateLimiter(self.rate)
+        i = 0
         try:
-            with mujoco.viewer.launch_passive(self.mj_model, self.mj_data) as viewer:
-                viewer.opt.frame = mujoco.mjtFrame.mjFRAME_SITE.value
-                viewer.opt.label = mujoco.mjtLabel.mjLABEL_SITE.value
+            print("\n" + "=" * 60)
+            print("控制说明: WASD/QE 移动, 方向键旋转, ESC 退出")
+            print("=" * 60)
 
-                print("\n" + "=" * 60)
-                print("控制说明: WASD/QE 移动, 方向键旋转, ESC 退出")
-                print("=" * 60)
+            while (self.running and self.kb_listener.running and self.sim_app.is_running()):
+                # if i > 100:
+                #     break
+                loop_start = time.time()
+                rate.sleep()
+                t0 = time.time()
+                if self.args.verbose:
+                    print(f"[DEBUG] rate.sleep took {(t0-loop_start)*1000:.2f}ms")
+                # 更新激光雷达位置和方向
+                site_position, site_orientation = self.kb_listener.update_lidar_pose(1./60.)
+                t1 = time.time()
+                if self.args.verbose:
+                    print(f"[DEBUG] update_lidar_pose took {(t1-t0)*1000:.2f}ms")
+                self.mj_model.body("lidar_base").pos[:] = site_position[:]
+                self.mj_model.body("lidar_base").quat[:] = site_orientation[[3,0,1,2]]
+                t2 = time.time()
+                if self.args.verbose:
+                    print(f"[DEBUG] set pos/quats took {(t2-t1)*1000:.2f}ms")
 
-                while (self.running and self.kb_listener.running and
-                       viewer.is_running and self.sim_app.is_running()):
-                    # 更新激光雷达位置和方向
-                    site_position, site_orientation = self.kb_listener.update_lidar_pose(1./60.)
-                    self.mj_model.body("lidar_base").pos[:] = site_position[:]
-                    self.mj_model.body("lidar_base").quat[:] = site_orientation[[3,0,1,2]]
+                # 更新仿真
+                mujoco.mj_step(self.mj_model, self.mj_data)
+                step_cnt += 1
+                t3 = time.time()
+                if self.args.verbose:
+                    print(f"[DEBUG] mujoco.mj_step took {(t3-t2)*1000:.2f}ms")
 
-                    # 更新仿真
-                    mujoco.mj_step(self.mj_model, self.mj_data)
-                    step_cnt += 1
-                    viewer.sync()
-
-                    # 按频率更新点云
-                    if step_cnt % step_gap == 0:
-                        start = time.time()
-                        self._resample_livox_if_needed()
-                        self.lidar.update(self.mj_data, self.rays_phi, self.rays_theta)
-                        pts_world = self.lidar.get_data_in_local_frame()
-                        self.update_visualization(pts_world)
-                        end = time.time()
-                        if self.args.verbose:
-                            quat = Rotation.from_matrix(self.lidar.sensor_rotation).as_quat()
-                            euler = Rotation.from_quat(quat).as_euler('xyz', degrees=True)
-                            print(f"位置: [{self.lidar.sensor_position[0]:.2f},{self.lidar.sensor_position[1]:.2f},{self.lidar.sensor_position[2]:.2f}] "+
-                                  f"范围: x=({pts_world[:,0].min():.2f} {pts_world[:,0].max():.2f}), y=({pts_world[:,1].min():.2f} {pts_world[:,1].max():.2f}), z=({pts_world[:,2].min():.2f} {pts_world[:,2].max():.2f}) "+
-                                  f"欧拉: [{euler[0]:.1f}°, {euler[1]:.1f}°, {euler[2]:.1f}°] "
-                                  f"点数: {pts_world.shape[0]} 耗时: {(end-start)*1000:.2f}ms")
-                    # Isaac Sim渲染循环
-                    self.sim_app.update()
-                    time.sleep(1./60.)  # 60Hz仿真频率
+                # 按频率更新点云
+                # if step_cnt % step_gap == 0:
+                t4 = time.time()
+                self._resample_livox_if_needed()
+                t5 = time.time()
+                if self.args.verbose:
+                    print(f"[DEBUG] _resample_livox_if_needed took {(t5-t4)*1000:.2f}ms")
+                self.lidar.update(self.mj_data, self.rays_phi, self.rays_theta)
+                t6 = time.time()
+                if self.args.verbose:
+                    print(f"[DEBUG] lidar.update took {(t6-t5)*1000:.2f}ms")
+                pts_world = self.lidar.get_data_in_world_frame()
+                # df = pd.DataFrame(pts_world)
+                # df.to_csv(f"{i}.csv", header=False, index=False)
+                # i += 1
+                t7 = time.time()
+                if self.args.verbose:
+                    print(f"[DEBUG] get_data_in_world_frame took {(t7-t6)*1000:.2f}ms")
+                self.update_visualization(pts_world)
+                t8 = time.time()
+                if self.args.verbose:
+                    print(f"[DEBUG] update_visualization took {(t8-t7)*1000:.2f}ms")
+                if self.args.verbose:
+                    quat = Rotation.from_matrix(self.lidar.sensor_rotation).as_quat()
+                    euler = Rotation.from_quat(quat).as_euler('xyz', degrees=True)
+                    print(f"位置: [{self.lidar.sensor_position[0]:.2f},{self.lidar.sensor_position[1]:.2f},{self.lidar.sensor_position[2]:.2f}] "+
+                            f"范围: x=({pts_world[:,0].min():.2f} {pts_world[:,0].max():.2f}), y=({pts_world[:,1].min():.2f} {pts_world[:,1].max():.2f}), z=({pts_world[:,2].min():.2f} {pts_world[:,2].max():.2f}) "+
+                            f"欧拉: [{euler[0]:.1f}°, {euler[1]:.1f}°, {euler[2]:.1f}°] "
+                            f"点数: {pts_world.shape[0]}")
+                    print(f"[DEBUG TIMING] total loop: {(t8-loop_start)*1000:.2f}ms")
+                # Isaac Sim渲染循环
+                t9 = time.time()
+                self.sim_app.update()
+                t10 = time.time()
+                if self.args.verbose:
+                    print(f"[DEBUG] sim_app.update took {(t10-t9)*1000:.2f}ms")
 
         except KeyboardInterrupt:
             print("用户中断，正在退出...")

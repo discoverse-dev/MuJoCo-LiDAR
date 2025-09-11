@@ -8,3 +8,5 @@ models/*
 build/
 *.tar.gz
 isaacgym/
+*.csv
+mujoco_lidar/mesh_test_hit_points.npy

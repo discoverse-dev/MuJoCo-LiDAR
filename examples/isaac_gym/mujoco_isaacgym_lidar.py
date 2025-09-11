@@ -1,12 +1,13 @@
 import time
 import argparse
 
+from loop_rate_limiters import RateLimiter
 from isaacgym import gymapi
 from isaacgym import gymutil
-
+import pandas as pd 
 import sys
 import os
-
+import torch
 # TODO: remove
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 from mujoco_lidar import (
@@ -15,12 +16,20 @@ from mujoco_lidar import (
 )
 from mujoco_lidar.mj_lidar_utils import create_demo_scene, KeyboardListener
 
+
+
 def draw_lidar_points(gym, viewer, env, points):
-    """Draws LiDAR point cloud as spheres in Isaac Gym viewer."""
-    sphere_geom = gymutil.WireframeSphereGeometry(0.05, 4, 4, None, color=(0, 1, 0))
+    """ Draws visualizations for dubugging (slows down simulation a lot).
+        Default behaviour: draws height measurement points
+    """
+    # draw height lines
+    
+    sphere_geom = gymutil.WireframeSphereGeometry(0.01, 4, 4, None, color=(0, 1, 0))
+
+    # randomly generat
     for pt in points:
-        pose = gymapi.Transform(gymapi.Vec3(float(pt[0]), float(pt[1]), float(pt[2])), r=None)
-        gymutil.draw_lines(sphere_geom, gym, viewer, env, pose)
+        sphere_pose = gymapi.Transform(gymapi.Vec3(pt[0], pt[2], pt[1]), r=None)
+        gymutil.draw_lines(sphere_geom, gym, viewer, env, sphere_pose)
 
 def select_lidar_angles(args):
     """Select LiDAR angles based on args.lidar."""
@@ -93,7 +102,7 @@ def main():
     import taichi as ti
 
     # MuJoCo-LiDAR setup
-    mj_model, mj_data = create_demo_scene("floor")
+    mj_model, mj_data = create_demo_scene("demo")
     rays_theta, rays_phi, use_livox_lidar = select_lidar_angles(args)
     rays_theta = np.ascontiguousarray(rays_theta).astype(np.float32)
     rays_phi = np.ascontiguousarray(rays_phi).astype(np.float32)
@@ -132,7 +141,8 @@ def main():
     step_cnt = 0
     step_gap = max(1, 60 // args.rate)
     pts_world = None
-
+    
+    rate = RateLimiter(frequency=args.rate)
     try:
         with mujoco.viewer.launch_passive(mj_model, mj_data) as mj_viewer:
             mj_viewer.opt.frame = mujoco.mjtFrame.mjFRAME_SITE.value
@@ -141,7 +151,8 @@ def main():
             print("\nWASD/QE move, arrow keys rotate, ESC to exit (MuJoCo window)")
             while not gym.query_viewer_has_closed(viewer) and mj_viewer.is_running and kb_listener.running:
                 # Update LiDAR pose from keyboard
-                site_position, site_orientation = kb_listener.update_lidar_pose(1./60.)
+                rate.sleep()
+                site_position, site_orientation = kb_listener.update_lidar_pose(1./ args.rate)
                 mj_model.body("lidar_base").pos[:] = site_position[:]
                 mj_model.body("lidar_base").quat[:] = site_orientation[[3,0,1,2]]
 
@@ -167,7 +178,7 @@ def main():
                         else:
                             rays_theta, rays_phi = kb_listener.livox_generator.sample_ray_angles_ti()
                     lidar.update(mj_data, rays_phi, rays_theta)
-                    pts_world = lidar.get_data_in_local_frame()
+                    pts_world = lidar.get_data_in_world_frame()
                     if pts_world is not None and pts_world.shape[0] > 0:
                         draw_lidar_points(gym, viewer, env, pts_world)
                     if args.verbose and pts_world is not None:

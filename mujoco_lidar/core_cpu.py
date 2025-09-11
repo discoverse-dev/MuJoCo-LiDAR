@@ -121,6 +121,9 @@ class LidarSensor:
             pcl_world = pcl_local @ site_mat.T + site_pos
             return pcl_world
         elif self.backend == "gpu":
-            if not hasattr(self, 'pcl_world'):
+            # if not hasattr(self, 'pcl_world'):
+            #     raise ValueError("No point cloud data available. Please call update() first.")
+            pcl_world = self.ti_lidar.get_hit_points()
+            if pcl_world is None:
                 raise ValueError("No point cloud data available. Please call update() first.")
-            return self.pcl_world
+            return pcl_world
