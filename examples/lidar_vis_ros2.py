@@ -193,6 +193,7 @@ def main():
                         choices=['avia', 'HAP', 'horizon', 'mid40', 'mid70', 'mid360', 'tele', 'HDL64', 'vlp32', 'os128'])
     parser.add_argument('--verbose', action='store_true', help='显示详细输出信息')
     parser.add_argument('--rate', type=int, default=12, help='循环频率 (Hz) (默认: 12)')
+    parser.add_argument('--flip', action='store_true', help='翻转LiDAR的俯仰角')
     parser.add_argument('--obj-path', type=str, help='OBJ文件路径')
     args = parser.parse_args()
 
@@ -258,7 +259,7 @@ def main():
                             node.rays_theta, node.rays_phi = node.livox_generator.sample_ray_angles_ti()
 
                     # 执行ray casting
-                    node.lidar.update(node.mj_data, node.rays_phi, node.rays_theta)
+                    node.lidar.update(node.mj_data, node.rays_phi if not args.flip else -node.rays_phi, node.rays_theta)
 
                     points = node.lidar.get_data_in_local_frame()
 
