@@ -40,11 +40,6 @@ class StaticBVHLidar:
         self._overflow = ti.field(dtype=ti.i32, shape=())
         self._hit_points = None
         self._distances = None
-        self._theta_buf = None
-        self._phi_buf = None
-        self._static_theta = None  # 预置静态模式角度缓存
-        self._static_phi = None
-        self._use_static = False
 
     def _load_obj(self, path):
         verts = []
@@ -80,10 +75,6 @@ class StaticBVHLidar:
         if self._hit_points is None or self._hit_points.shape[0] != n_rays:
             self._hit_points = ti.Vector.field(3, dtype=ti.f32, shape=n_rays)
             self._distances = ti.field(dtype=ti.f32, shape=n_rays)
-        if not self._use_static:
-            if self._theta_buf is None or self._theta_buf.shape[0] != n_rays:
-                self._theta_buf = ti.ndarray(dtype=ti.f32, shape=n_rays)
-                self._phi_buf = ti.ndarray(dtype=ti.f32, shape=n_rays)
 
     def _decompose_pose(self, pose_4x4: np.ndarray):
         rot = pose_4x4[:3, :3].astype(np.float32)
@@ -120,14 +111,14 @@ class StaticBVHLidar:
     @ti.kernel
     def _trace_kernel(self,
                       rot: ti.types.ndarray(dtype=ti.f32, ndim=2),
-                      origin_arr: ti.types.ndarray(dtype=ti.f32, ndim=1),
+                      origin: ti.types.ndarray(dtype=ti.f32, ndim=1),
                       theta_arr: ti.types.ndarray(dtype=ti.f32, ndim=1),
                       phi_arr: ti.types.ndarray(dtype=ti.f32, ndim=1),
                       n_rays: ti.i32,
                       hit_pts: ti.template(),
                       distances: ti.template()
     ):
-        o = ti.Vector([origin_arr[0], origin_arr[1], origin_arr[2]])
+        o = ti.Vector([origin[0], origin[1], origin[2]])
         for i in ti.ndrange(n_rays):
             t_angle = theta_arr[i]
             p_angle = phi_arr[i]
