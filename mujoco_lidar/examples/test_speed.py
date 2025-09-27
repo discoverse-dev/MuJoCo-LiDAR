@@ -4,7 +4,6 @@ import time
 import mujoco
 import numpy as np
 import taichi as ti
-import zhplot # 如果图像显示中文，需要安装zhplot
 import matplotlib.pyplot as plt
 
 from mujoco_lidar.core import MjLidarSensor
