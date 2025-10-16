@@ -7,6 +7,7 @@ import traceback
 import mujoco
 import mujoco.viewer
 import numpy as np
+import taichi as ti
 from scipy.spatial.transform import Rotation
 
 import rclpy
@@ -16,9 +17,11 @@ from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import PointCloud2, PointField
 from visualization_msgs.msg import MarkerArray
 
+from mujoco_lidar.core_ti import MjLidarTi
+
 from mujoco_lidar import (
-    LidarSensor, LivoxGenerator, 
-    generate_vlp32, generate_HDL64, generate_os128
+    LivoxGenerator, 
+    generate_vlp32, generate_HDL64, generate_os128, generate_grid_scan_pattern
 )
 
 from mujoco_lidar.mj_lidar_utils import create_demo_scene, KeyboardListener, create_marker_from_geom
@@ -120,6 +123,7 @@ def broadcast_tf(broadcaster, parent_frame, child_frame, translation, rotation, 
 class LidarVisualizer(Node):
     def __init__(self, args):
         super().__init__('mujoco_lidar_test')
+        self.site_name = "lidar_site"
 
         # 创建点云发布者
         self.pub_taichi = self.create_publisher(PointCloud2, '/lidar_points_taichi', 1)
@@ -131,7 +135,7 @@ class LidarVisualizer(Node):
         self.tf_broadcaster = TransformBroadcaster(self)
 
         # 创建MuJoCo场景
-        self.mj_model, self.mj_data = create_demo_scene("floor")
+        self.mj_model, self.mj_data = create_demo_scene("primitive")
 
         self.scene = mujoco.MjvScene(self.mj_model, maxgeom=10000)
 
@@ -146,6 +150,8 @@ class LidarVisualizer(Node):
             self.rays_theta, self.rays_phi = generate_vlp32()
         elif args.lidar == "os128":
             self.rays_theta, self.rays_phi = generate_os128()
+        elif args.lidar == "custom":
+            self.rays_theta, self.rays_phi = generate_grid_scan_pattern(360, 64, phi_range=(0., np.pi/2.))
         else:
             raise ValueError(f"不支持的LiDAR型号: {args.lidar}")
 
@@ -153,23 +159,15 @@ class LidarVisualizer(Node):
         self.rays_theta = np.ascontiguousarray(self.rays_theta).astype(np.float32)
         self.rays_phi = np.ascontiguousarray(self.rays_phi).astype(np.float32)
 
-        # 创建激光雷达传感器
-        if args.obj_path and os.path.exists(args.obj_path):
-            obj_path = args.obj_path
-        else:
-            obj_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../models", "scene.obj")
-
-        self.lidar = LidarSensor(self.mj_model, site_name="lidar_site", backend="gpu", obj_path=obj_path)
+        self.lidar = MjLidarTi(self.mj_model)
 
         n_rays = len(self.rays_theta)
-        if self.lidar.backend == "gpu":
-            import taichi as ti
-            _rays_phi = ti.ndarray(dtype=ti.f32, shape=n_rays)
-            _rays_theta = ti.ndarray(dtype=ti.f32, shape=n_rays)
-            _rays_phi.from_numpy(self.rays_phi)
-            _rays_theta.from_numpy(self.rays_theta)
-            self.rays_phi = _rays_phi
-            self.rays_theta = _rays_theta
+        _rays_phi = ti.ndarray(dtype=ti.f32, shape=n_rays)
+        _rays_theta = ti.ndarray(dtype=ti.f32, shape=n_rays)
+        _rays_phi.from_numpy(self.rays_phi)
+        _rays_theta.from_numpy(self.rays_theta)
+        self.rays_phi = _rays_phi
+        self.rays_theta = _rays_theta
 
         self.get_logger().info(f"射线数量: {n_rays}")
 
@@ -190,11 +188,10 @@ def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='MuJoCo LiDAR可视化与ROS2集成')
     parser.add_argument('--lidar', type=str, default='mid360', help='LiDAR型号 (mid360, HDL64, vlp32, os128)', \
-                        choices=['avia', 'HAP', 'horizon', 'mid40', 'mid70', 'mid360', 'tele', 'HDL64', 'vlp32', 'os128'])
+                        choices=['avia', 'HAP', 'horizon', 'mid40', 'mid70', 'mid360', 'tele', 'HDL64', 'vlp32', 'os128', 'custom'])
     parser.add_argument('--verbose', action='store_true', help='显示详细输出信息')
     parser.add_argument('--rate', type=int, default=12, help='循环频率 (Hz) (默认: 12)')
     parser.add_argument('--flip', action='store_true', help='翻转LiDAR的俯仰角')
-    parser.add_argument('--obj-path', type=str, help='OBJ文件路径')
     args = parser.parse_args()
 
     print("\n" + "=" * 60)
@@ -204,8 +201,6 @@ def main():
     print(f"- LiDAR型号: {args.lidar}")
     print(f"- 循环频率: {args.rate} Hz")
     print(f"- 详细输出: {'启用' if args.verbose else '禁用'}")
-    if args.obj_path:
-        print(f"- OBJ文件: {args.obj_path}")
 
     forder_path = os.path.dirname(os.path.abspath(__file__))
     cmd = f"ros2 run rviz2 rviz2 -d {forder_path}/config/rviz2_config.rviz"
@@ -223,8 +218,11 @@ def main():
 
     # 创建定时器
     step_cnt = 0
-    step_gap = 60 // args.rate
-    rate = node.create_rate(60)
+    render_fps = 60
+    step_gap = render_fps // args.rate
+    rate = node.create_rate(render_fps)
+
+    rmat = np.eye(3) if not args.flip else Rotation.from_euler('y', 180, degrees=True).as_matrix()
 
     try:
         with mujoco.viewer.launch_passive(node.mj_model, node.mj_data) as viewer:
@@ -232,6 +230,7 @@ def main():
             viewer.opt.frame = mujoco.mjtFrame.mjFRAME_SITE.value
             viewer.opt.label = mujoco.mjtLabel.mjLABEL_SITE.value
 
+            lidar_pose = np.eye(4, dtype=np.float32) 
             while rclpy.ok() and node.kb_listener.running and viewer.is_running:
 
                 # 更新激光雷达位置和方向
@@ -240,41 +239,46 @@ def main():
                 node.mj_model.body("lidar_base").quat[:] = site_orientation[[3,0,1,2]]
 
                 # 更新模拟
-                mujoco.mj_step(node.mj_model, node.mj_data)
+                for _ in range(int(1. / (render_fps * node.mj_model.opt.timestep))):
+                    mujoco.mj_step(node.mj_model, node.mj_data)
                 step_cnt += 1
                 viewer.sync()
                 rate.sleep()
 
                 if step_cnt % step_gap == 0:
+
                     node.update_scene()
 
                     # 发布场景可视化标记
                     publish_scene(node.pub_scene, node.scene, "world", node.get_clock().now().to_msg())
 
-                    start_time = time.time()
                     if node.use_livox_lidar:
-                        if node.lidar.backend == "cpu":
-                            node.rays_theta, node.rays_phi = node.livox_generator.sample_ray_angles()
-                        elif node.lidar.backend == "gpu":
-                            node.rays_theta, node.rays_phi = node.livox_generator.sample_ray_angles_ti()
+                        node.rays_theta, node.rays_phi = node.livox_generator.sample_ray_angles_ti()
 
+                    # 获取激光雷达位姿
+                    lidar_pose[:3, 3] = node.mj_data.site(node.site_name).xpos
+                    lidar_pose[:3,:3] = node.mj_data.site(node.site_name).xmat.reshape(3,3) @ rmat
+
+                    start_time = time.time()
                     # 执行ray casting
-                    node.lidar.update(node.mj_data, node.rays_phi if not args.flip else -node.rays_phi, node.rays_theta)
+                    node.lidar.update(node.mj_data)
+                    node.lidar.trace_rays(lidar_pose, node.rays_theta, node.rays_phi)
+                    end_time = time.time()
 
-                    points = node.lidar.get_data_in_local_frame()
+                    points_global = node.lidar.get_hit_points()
+
+                    Tmat_inv = np.linalg.inv(lidar_pose)
+                    points = points_global @ Tmat_inv[:3,:3].T + Tmat_inv[:3,3]
 
                     # 获取激光雷达位置和方向
-                    lidar_position = node.lidar.sensor_position
-                    lidar_orientation = Rotation.from_matrix(node.lidar.sensor_rotation).as_quat()
-
+                    lidar_position = lidar_pose[:3,3]
+                    lidar_orientation = Rotation.from_matrix(lidar_pose[:3,:3]).as_quat()
 
                     # 广播激光雷达的TF
                     broadcast_tf(node.tf_broadcaster, "world", "lidar", lidar_position, lidar_orientation, node.get_clock().now().to_msg())
 
                     # 发布点云
                     publish_point_cloud(node.pub_taichi, points, "lidar", node.get_clock().now().to_msg())
-
-                    end_time = time.time()
 
                     # 打印性能信息和当前位置
                     if args.verbose:

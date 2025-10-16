@@ -62,11 +62,11 @@ def create_demo_scene(scene="primitive"):
                 <geom name="capsule2" type="capsule" size="0.2 0.4" pos="-3 -2 0.6" euler="45 0 45" rgba="1 0 1 0.7"/>
                 
                 <!-- 角落放置一组排列的几何体 -->
-                <body pos="-3 3 0">
-                    <geom name="corner_box" type="box" size="0.2 0.2 0.2" pos="0 0 0.2" rgba="0.5 0.5 0.5 1"/>
-                    <geom name="corner_sphere" type="sphere" size="0.2" pos="0.5 0 0.2" rgba="0.7 0.7 0.7 1"/>
-                    <geom name="corner_cylinder" type="cylinder" size="0.2 0.2" pos="0 0.5 0.2" rgba="0.6 0.6 0.6 1"/>
-                    <geom name="corner_capsule" type="capsule" size="0.1 0.3" pos="0.5 0.5 0.3" rgba="0.8 0.8 0.8 1" euler="0 1.57 0"/>
+                <body pos="-3 3 1" quat="0.707 0.707 0 0">
+                    <geom name="corner_box" type="box" size="0.2 0.2 0.2" pos="0 0 0.2" quat="0.1 0.2 0.3 0.4" rgba="0.5 0.5 0.5 1"/>
+                    <geom name="corner_sphere" type="sphere" size="0.2" pos="0.5 0 0.2" quat="0.1 0.4 0.2 0.3" rgba="0.7 0.7 0.7 1"/>
+                    <geom name="corner_cylinder" type="cylinder" size="0.2 0.2" pos="0 0.5 0.2" quat="0.9 0.4 0.2 0.3" rgba="0.6 0.6 0.6 1"/>
+                    <geom name="corner_capsule" type="capsule" size="0.1 0.3" pos="0.5 0.5 0.3" rgba="0.8 0.8 0.8 1" euler="0 1.57 1.1"/>
                 </body>
             </worldbody>
         </mujoco>
