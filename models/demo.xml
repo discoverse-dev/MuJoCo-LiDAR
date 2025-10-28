@@ -1,0 +1,41 @@
+<?xml version="1.0" ?>
+<mujoco model="demo">
+    <asset>
+        <mesh name="eight" file="eight.obj"/>
+    </asset>
+
+    <worldbody>
+        <!-- 地面+四面墙 -->
+        <geom name="ground" type="plane" size="5 5 0.1" pos="0 0 0" rgba="0.2 0.9 0.9 1"/>
+        <geom name="wall1" type="box" size="1e-3 3 1" pos=" 3 0 1" rgba="0.9 0.9 0.9 1"/>
+        <geom name="wall2" type="box" size="1e-3 3 1" pos="-3 0 1" rgba="0.9 0.9 0.9 1"/>
+        <geom name="wall3" type="box" size="3 1e-3 1" pos="0  3 1" rgba="0.9 0.9 0.9 1"/>
+        <geom name="wall4" type="box" size="3 1e-3 1" pos="0 -3 1" rgba="0.9 0.9 0.9 1"/>
+
+        <!-- 盒子 -->
+        <geom name="box1" type="box" size="0.5 0.5 0.5" pos="2 0 0.5" euler="45 -45 0" rgba="1 0 0 1"/>
+
+        <!-- 球体 -->
+        <geom name="sphere1" type="sphere" size="0.5" pos="0 2 0.5" rgba="0 1 0 1"/>
+        
+        <!-- 圆柱体 -->
+        <geom name="cylinder1" type="cylinder" size="0.4 0.6" pos="0 -2 0.4" euler="0 90 0" rgba="0 0 1 1"/>
+
+        <!-- 椭球体 -->
+        <geom name="ellipsoid1" type="ellipsoid" size="0.4 0.3 0.5" pos="2 2 0.5" rgba="1 1 0 1"/>
+
+        <!-- 胶囊体 -->
+        <geom name="capsule1" type="capsule" size="0.3 0.5" pos="-1 1 0.8" euler="45 0 0" rgba="1 0 1 1"/>
+        
+        <!-- mesh -->
+        <geom mesh="eight" pos="1 0 1" euler="0 0 0" rgba="0 1 0 1" type="mesh"/>
+        
+        <!-- 激光雷达 -->
+        <body name="your_robot_name" pos="0 0 1" quat="1 0 0 0" mocap="true">
+            <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-9 1e-9 1e-9"/>
+            <site name="lidar_site" size="0.001" type='sphere'/>
+            <geom type="box" size="0.1 0.1 0.1" density="0" contype="0" conaffinity="0" rgba="0.9 0.3 0.3 0.2"/>
+        </body>
+        
+    </worldbody>
+</mujoco>

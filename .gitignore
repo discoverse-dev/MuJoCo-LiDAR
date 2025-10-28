@@ -3,6 +3,5 @@
 __pycache__
 .DS_Store
 *.pyc
-models/*
 .vscode/*
 *build
