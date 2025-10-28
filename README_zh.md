@@ -51,7 +51,7 @@ pip install -e ".[gpu]"
 
 **注意**：
 - CPU后端不需要安装Taichi和TIBVH，开箱即用
-- GPU后端需要Taichi支持的GPU，目前在Nvidia4090、MacBook M3 Max、MacBook M4 Air上测试通过
+- GPU后端需要配置好cuda的nvidia显卡或其他Taichi支持的GPU
 
 ## 📚 使用示例
 

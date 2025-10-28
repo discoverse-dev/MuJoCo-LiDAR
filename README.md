@@ -51,7 +51,7 @@ pip install -e ".[gpu]"
 
 **Note**:
 - CPU backend does not require Taichi and TIBVH, works out of the box
-- GPU backend requires a Taichi-supported GPU, currently tested on Nvidia 4090, MacBook M3 Max, MacBook M4 Air
+- GPU backend requires nvidia GPU with CUDA or a Taichi-supported GPU
 
 ## 📚 Usage Examples
 
