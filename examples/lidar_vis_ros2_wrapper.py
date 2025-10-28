@@ -13,109 +13,15 @@ from scipy.spatial.transform import Rotation
 import rclpy
 from rclpy.node import Node
 from tf2_ros import TransformBroadcaster
-from geometry_msgs.msg import TransformStamped
-from sensor_msgs.msg import PointCloud2, PointField
+from sensor_msgs.msg import PointCloud2
 from visualization_msgs.msg import MarkerArray
 
-from mujoco_lidar.core_ti.mjlidar_ti import MjLidarTi
+from mujoco_lidar import MjLidarWrapper
 from mujoco_lidar import scan_gen
-from mujoco_lidar import scan_gen_livox_ti
 
-from mujoco_lidar.mj_lidar_utils import create_demo_scene, KeyboardListener, create_marker_from_geom
+from mujoco_lidar.mj_lidar_utils import create_demo_scene, KeyboardListener
 
-def publish_scene(publisher, mj_scene, frame_id, stamp):
-    """将MuJoCo场景发布为ROS可视化标记数组"""
-    marker_array = MarkerArray()
-
-    # 记录当前使用的标记ID
-    current_id = 0
-
-    # 创建每个几何体的标记
-    for i in range(mj_scene.ngeom):
-        geom = mj_scene.geoms[i]
-        # 创建标记并返回一个标记列表
-        markers = create_marker_from_geom(geom, current_id, frame_id)
-
-        # 添加所有返回的标记到标记数组
-        for marker in markers:
-            # 在ROS2中，需要设置stamp为ROS2的时间类型
-            marker.header.stamp = stamp
-            marker_array.markers.append(marker)
-            current_id += 1
-
-    # 发布标记数组
-    publisher.publish(marker_array)
-
-
-def publish_point_cloud(publisher, points, frame_id, stamp):
-    """将点云数据发布为ROS PointCloud2消息"""
-
-    # 定义点云字段
-    fields = [
-        PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
-        PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
-        PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
-        PointField(name='intensity', offset=12, datatype=PointField.FLOAT32, count=1)
-    ]
-
-    # 添加强度值
-    if len(points.shape) == 2:
-        # 如果是(N, 3)形状，转换为(3, N)以便处理
-        points_transposed = points.T if points.shape[1] == 3 else points
-
-        if points_transposed.shape[0] == 3:
-            # 添加强度通道
-            points_with_intensity = np.vstack([
-                points_transposed, 
-                np.ones(points_transposed.shape[1], dtype=np.float32)
-            ])
-        else:
-            points_with_intensity = points_transposed
-    else:
-        # 如果点云已经是(3, N)形状
-        if points.shape[0] == 3:
-            points_with_intensity = np.vstack([
-                points, 
-                np.ones(points.shape[1], dtype=np.float32)
-            ])
-        else:
-            points_with_intensity = points
-
-    # 创建ROS2 PointCloud2消息
-    pc_msg = PointCloud2()
-    pc_msg.header.frame_id = frame_id
-    pc_msg.header.stamp = stamp
-    pc_msg.fields = fields
-    pc_msg.is_bigendian = False
-    pc_msg.point_step = 16  # 4 个 float32 (x,y,z,intensity)
-    pc_msg.row_step = pc_msg.point_step * points_with_intensity.shape[1]
-    pc_msg.height = 1
-    pc_msg.width = points_with_intensity.shape[1]
-    pc_msg.is_dense = True
-
-    # 转置回(N, 4)格式并转换为字节数组
-    pc_msg.data = np.transpose(points_with_intensity).astype(np.float32).tobytes()
-
-    publisher.publish(pc_msg)
-
-
-def broadcast_tf(broadcaster, parent_frame, child_frame, translation, rotation, stamp):
-    """广播TF变换"""
-    t = TransformStamped()
-    t.header.stamp = stamp
-    t.header.frame_id = parent_frame
-    t.child_frame_id = child_frame
-
-    t.transform.translation.x = float(translation[0])
-    t.transform.translation.y = float(translation[1])
-    t.transform.translation.z = float(translation[2])
-
-    t.transform.rotation.x = float(rotation[0])
-    t.transform.rotation.y = float(rotation[1])
-    t.transform.rotation.z = float(rotation[2])
-    t.transform.rotation.w = float(rotation[3])
-
-    broadcaster.sendTransform(t)
+from lidar_vis_ros2 import publish_scene, publish_point_cloud, broadcast_tf
 
 class LidarVisualizer(Node):
     def __init__(self, args):
@@ -138,7 +44,7 @@ class LidarVisualizer(Node):
 
         self.use_livox_lidar = False
         if args.lidar in {"avia", "mid40", "mid70", "mid360", "tele"}:
-            self.livox_generator = scan_gen_livox_ti.LivoxGeneratorTi(args.lidar)
+            self.livox_generator = scan_gen.LivoxGenerator(args.lidar)
             self.rays_theta, self.rays_phi = self.livox_generator.sample_ray_angles()
             self.use_livox_lidar = True
         elif args.lidar == "HDL64":
@@ -156,7 +62,7 @@ class LidarVisualizer(Node):
         self.rays_theta = np.ascontiguousarray(self.rays_theta).astype(np.float32)
         self.rays_phi = np.ascontiguousarray(self.rays_phi).astype(np.float32)
 
-        self.lidar = MjLidarTi(self.mj_model)
+        self.lidar = MjLidarWrapper(self.mj_model, site_name=self.site_name, backend="gpu")
 
         n_rays = len(self.rays_theta)
         _rays_phi = ti.ndarray(dtype=ti.f32, shape=n_rays)
@@ -188,7 +94,6 @@ def main():
                         choices=['avia', 'HAP', 'horizon', 'mid40', 'mid70', 'mid360', 'tele', 'HDL64', 'vlp32', 'os128', 'custom'])
     parser.add_argument('--verbose', action='store_true', help='显示详细输出信息')
     parser.add_argument('--rate', type=int, default=12, help='循环频率 (Hz) (默认: 12)')
-    parser.add_argument('--flip', action='store_true', help='翻转LiDAR的俯仰角')
     args = parser.parse_args()
 
     print("\n" + "=" * 60)
@@ -219,8 +124,6 @@ def main():
     step_gap = render_fps // args.rate
     rate = node.create_rate(render_fps)
 
-    rmat = np.eye(3) if not args.flip else Rotation.from_euler('y', 180, degrees=True).as_matrix()
-
     try:
         with mujoco.viewer.launch_passive(node.mj_model, node.mj_data) as viewer:
             # 设置视图模式为site
@@ -250,16 +153,14 @@ def main():
                     publish_scene(node.pub_scene, node.scene, "world", node.get_clock().now().to_msg())
 
                     if node.use_livox_lidar:
-                        node.rays_theta, node.rays_phi = node.livox_generator.sample_ray_angles_ti()
+                        node.rays_theta, node.rays_phi = node.livox_generator.sample_ray_angles()
 
                     # 获取激光雷达位姿
                     lidar_pose[:3, 3] = node.mj_data.site(node.site_name).xpos
-                    lidar_pose[:3,:3] = node.mj_data.site(node.site_name).xmat.reshape(3,3) @ rmat
+                    lidar_pose[:3,:3] = node.mj_data.site(node.site_name).xmat.reshape(3,3)
 
                     start_time = time.time()
-                    # 执行ray casting
-                    node.lidar.update(node.mj_data)
-                    node.lidar.trace_rays(lidar_pose, node.rays_theta, node.rays_phi)
+                    node.lidar.trace_rays(node.mj_data, node.rays_theta, node.rays_phi)
                     end_time = time.time()
 
                     points_local = node.lidar.get_hit_points()

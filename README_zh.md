@@ -1,6 +1,6 @@
 # MuJoCo-LiDAR: 基于MuJoCo的高性能激光雷达仿真
 
-基于MuJoCo的高性能激光雷达仿真工具，由Taichi编程语言提供强大的并行计算支持。
+基于MuJoCo的高性能激光雷达仿真工具，支持CPU和GPU两种后端，由Taichi编程语言提供强大的GPU并行计算支持。
 
 ![demo](./assets/lidar_rviz.png)
 
@@ -8,24 +8,31 @@
 
 ## 🌟 特点
 
-- **GPU加速**：利用Taichi实现GPU高效并行计算
-- **高性能**：能在毫秒级生成100万+射线
+- **双后端支持**：
+  - **CPU后端**：基于MuJoCo原生的`mj_multiRay`函数，无需GPU，简单易用
+  - **GPU后端**：利用Taichi实现GPU高效并行计算，性能更强，支持百万面片的mesh场景
+- **高性能**：GPU后端能在毫秒级生成100万+射线
+- **动态场景**：支持动态场景实时bvh构建，实现快速LiDAR扫描
 - **多种激光雷达模型**：支持多种扫描模式：
   - Livox非重复扫描模式: mid360 mid70 mid40 tele avia
   - Velodyne HDL-64E、VLP-32C
   - Ouster OS-128
   - 可自定义网格扫描模式
-- **精确的物理模拟**：对所有MuJoCo几何体类型进行射线追踪：盒体、球体、椭球体、圆柱体、胶囊体和平面
+- **精确的物理模拟**：对所有MuJoCo几何体类型进行射线追踪：盒体、球体、椭球体、圆柱体、胶囊体、平面和mesh网格
+- **灵活的API**：提供统一的Wrapper接口和底层Core接口两种使用方式
 - **ROS集成**：提供即用型ROS1和ROS2示例
 
 ## 🔧 安装
 
 ### 系统要求
 
+**基础依赖（CPU和GPU后端都需要）：**
 - Python >= 3.8
 - MuJoCo >= 3.2.0
-- Taichi >= 1.6.0
 - NumPy >= 1.20.0
+
+**GPU后端额外依赖：**
+- Taichi >= 1.6.0
 - TIBVH (Taichi-based Linear BVH) - 用于高性能空间数据结构和几何处理
 
 ### 快速安装
@@ -35,42 +42,53 @@
 git clone https://github.com/TATP-233/MuJoCo-LiDAR.git
 cd MuJoCo-LiDAR
 
-# 使用pip安装（会自动安装所有依赖项，包括tibvh）
+# 1. 仅安装CPU后端（轻量级，无需GPU）
 pip install -e .
+
+# 2. 安装GPU后端依赖（需要GPU支持）
+pip install -e ".[gpu]"
 ```
 
-**注意**：如果自动安装依赖项失败，您可能需要手动安装 TIBVH：
-
-```bash
-# 手动安装 TIBVH 依赖项
-git clone https://github.com/TATP-233/tibvh.git
-cd tibvh
-pip install -e .
-cd ..
-```
+**注意**：
+- CPU后端不需要安装Taichi和TIBVH，开箱即用
+- GPU后端需要Taichi支持的GPU，目前在Nvidia4090、MacBook M3 Max、MacBook M4 Air上测试通过
 
 ## 📚 使用示例
 
-### 基本使用方法
+MuJoCo-LiDAR 提供两种使用方式和两种后端选择：
 
-MuJoCo-LiDAR 提供了简洁高效的 LiDAR 仿真功能。主要使用 `LidarSensor` 类来进行激光雷达仿真。
+### 使用方式对比
 
-#### 简单示例：通过字符串定义场景与激光雷达
+1. **Wrapper方式（推荐）**：使用 `MjLidarWrapper` 类，提供统一的高层接口，自动处理后端差异
+2. **Core方式（高级）**：直接使用底层的 `MjLidarCPU` 或 `MjLidarTi` 类，提供更细粒度的控制
 
-下面是一个完整的示例，展示如何在MuJoCo环境中通过Python字符串定义场景，并添加激光雷达及可视化点云：
+### 后端选择
+
+1. **CPU后端**：
+   - 优点：无需GPU，依赖少，易于部署
+   - 适用场景：简单场景、射线数量较少（<10000）、无GPU环境、场景只包含简单几何原语、无复杂mesh
+   - 性能：使用MuJoCo原生 `mj_multiRay` 函数
+
+2. **GPU后端**：
+   - 优点：高性能，适合大规模射线追踪
+   - 适用场景：复杂场景、大量射线（>10000）、需要实时性能、复杂mesh文件
+   - 性能：GPU并行计算，毫秒级处理100万+射线
+
+### 方式一：使用Wrapper（推荐，简单易用）
+
+Wrapper方式提供统一的接口，自动处理CPU和GPU后端的差异。这是**推荐的使用方式**。
+
+#### 示例1：CPU后端 + Wrapper（通过字符串定义场景）
 
 ```python
 import time
-import threading
 import mujoco
 import mujoco.viewer
-import matplotlib.pyplot as plt
 
-# 导入激光雷达类和扫描模式生成函数
-from mujoco_lidar import LidarSensor
-from mujoco_lidar.scan_gen import generate_grid_scan_pattern
+from mujoco_lidar import MjLidarWrapper
+from mujoco_lidar import scan_gen
 
-# 1. 定义简单的MuJoCo场景（包含不同几何体和激光雷达站点）
+# 定义简单的MuJoCo场景
 simple_demo_scene = """
 <mujoco model="simple_demo">
     <worldbody>
@@ -85,11 +103,8 @@ simple_demo_scene = """
         <geom name="box1" type="box" size="0.5 0.5 0.5" pos="2 0 0.5" euler="45 -45 0" rgba="1 0 0 1"/>
         <geom name="sphere1" type="sphere" size="0.5" pos="0 2 0.5" rgba="0 1 0 1"/>
         <geom name="cylinder1" type="cylinder" size="0.4 0.6" pos="0 -2 0.4" euler="0 90 0" rgba="0 0 1 1"/>
-        <geom name="ellipsoid1" type="ellipsoid" size="0.4 0.3 0.5" pos="2 2 0.5" rgba="1 1 0 1"/>
-        <geom name="capsule1" type="capsule" size="0.3 0.5" pos="-1 1 0.8" euler="45 0 0" rgba="1 0 1 1"/>
         
-        <!-- 激光雷达站点 - 重要！site标签用于定位激光雷达位置 -->
-        <!-- 注意此处的mocap="ture"是用来做用户交互的 对于具有实体的机器人 无需设置这一选项 -->
+        <!-- 激光雷达站点 -->
         <body name="lidar_base" pos="0 0 1" quat="1 0 0 0" mocap="true">
             <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-9 1e-9 1e-9"/>
             <site name="lidar_site" size="0.001" type='sphere'/>
@@ -99,300 +114,439 @@ simple_demo_scene = """
 </mujoco>
 """
 
-# 2. 创建MuJoCo模型和数据
-mj_model = mujoco.MjModel.from_xml_string(simple_demo_scene)    
+# 创建MuJoCo模型和数据
+mj_model = mujoco.MjModel.from_xml_string(simple_demo_scene)
 mj_data = mujoco.MjData(mj_model)
 
-# 3. 生成扫描模式（可以选择不同类型的激光雷达模式）
-# 这里创建简单的网格扫描模式，水平64线，垂直16线
-rays_theta, rays_phi = generate_grid_scan_pattern(num_ray_cols=64, num_ray_rows=16)
+# 生成扫描模式
+rays_theta, rays_phi = scan_gen.generate_grid_scan_pattern(num_ray_cols=64, num_ray_rows=16)
 
-# 4. 创建激光雷达传感器
-# 注意：site_name参数必须与MJCF文件中的<site name="lidar_site">匹配
-lidar = LidarSensor(mj_model, site_name="lidar_site")
+# 获取需要排除的body ID（避免激光雷达检测到自身）
+exclude_body_id = mj_model.body("lidar_base").id
 
-# 5. 执行光线追踪，获取点云数据
-lidar.update(mj_data, rays_phi, rays_theta)
-points = lidar.get_data_in_local_frame()
+# 创建CPU后端的激光雷达传感器
+lidar = MjLidarWrapper(
+    mj_model, 
+    site_name="lidar_site",
+    backend="cpu",  # 使用CPU后端
+    cutoff_dist=50.0,  # 最大检测距离50米
+    args={'bodyexclude': exclude_body_id}  # CPU后端特定参数：排除body
+)
 
-# 6. 设置可视化更新频率
-lidar_sim_rate = 10
-lidar_sim_cnt = 0
-
-# 7. 创建3D点云可视化线程
-def plot_points_thread():
-    global points, lidar_sim_rate
-    plt.ion()  # 开启交互模式
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.set_box_aspect([1, 1, 0.3])  # 设置三个轴的比例尺
-
-    while True:
-        ax.cla()  # 清除当前坐标轴
-        ax.scatter(points[:, 0], points[:, 1], points[:, 2], c=points[:, 2], cmap='viridis', s=3)
-        plt.draw()  # 更新绘图
-        plt.pause(1./lidar_sim_rate)  # 暂停以更新图形
-
-# 启动点云可视化线程
-plot_points_thread = threading.Thread(target=plot_points_thread)
-plot_points_thread.start()
-
-# 8. 主循环 - 使用MuJoCo查看器并更新激光雷达扫描
+# 在模拟循环中使用
 with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
-    # 设置视图模式为site
-    viewer.opt.frame = mujoco.mjtFrame.mjFRAME_SITE.value
-    viewer.opt.label = mujoco.mjtLabel.mjLABEL_SITE.value
-    viewer.cam.distance = 5.  # 设置相机距离
-
-    # 模拟主循环
-    while viewer.is_running:
-        # 更新物理模拟
+    while viewer.is_running():
         mujoco.mj_step(mj_model, mj_data)
         viewer.sync()
+        
+        # 执行射线追踪（Wrapper自动处理位姿更新）
+        lidar.trace_rays(mj_data, rays_theta, rays_phi)
+        
+        # 获取点云数据（本地坐标系）
+        points = lidar.get_hit_points()  # shape: (N, 3)
+        distances = lidar.get_distances()  # shape: (N,)
+        
         time.sleep(1./60.)
-
-        # 按照指定频率更新激光雷达点云
-        if mj_data.time * lidar_sim_rate > lidar_sim_cnt:
-            # 更新激光雷达数据
-            lidar.update(mj_data, rays_phi, rays_theta)
-            points = lidar.get_data_in_local_frame()
-            
-            # 输出点云基本信息（仅在第一次循环）
-            if lidar_sim_cnt == 0:
-                print("points basic info:")
-                print("  .shape:", points.shape)
-                print("  .dtype:", points.dtype)
-                print("  x.min():", points[:, 0].min(), "x.max():", points[:, 0].max())
-                print("  y.min():", points[:, 1].min(), "y.max():", points[:, 1].max())
-                print("  z.min():", points[:, 2].min(), "z.max():", points[:, 2].max())
-
-            lidar_sim_cnt += 1
-
-# 等待可视化线程结束
-plot_points_thread.join()
 ```
 
-运行程序，查看效果：
-
-```bash
-python examples/example_string.py
-
-# 在mujoco.viewer中，双击选中lidar_site所在的红色方块，按住Ctrl键，右键鼠标拖动可以平移红色方块，
-# 按住Ctrl，左键鼠标拖动可以旋转红色方块，同时观察matplotlib的`Figure 1`界面中的lidar点云的位置变化
-# 由此可以发现，points相对的坐标系是本地的lidar_site坐标系，并非全局坐标系
-```
-
-#### 简单示例：通过MJCF文件加载场景与激光雷达
-
-此示例演示了如何从MJCF文件加载模型。首先，需要在你的MJCF文件（例如 `models/demo.xml`）中定义激光雷达相关的 `site`，如：
-
-```xml
-    <!-- 激光雷达 -->
-    <body name="your_robot_name" pos="0 0 1" quat="1 0 0 0" mocap="true">
-        <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-9 1e-9 1e-9"/>
-        <site name="lidar_site" size="0.001" type='sphere'/>
-        <geom type="box" size="0.1 0.1 0.1" density="0" contype="0" conaffinity="0" rgba="0.9 0.3 0.3 0.2"/>
-    </body>
-```
-
-然后在Python脚本中，主要的区别在于模型加载方式：
+#### 示例2：GPU后端 + Wrapper（从MJCF文件加载）
 
 ```python
+import mujoco
+from mujoco_lidar import MjLidarWrapper, scan_gen
+
 # 从文件加载MuJoCo模型
-mj_model = mujoco.MjModel.from_xml_path("../../models/demo.xml")    
+mj_model = mujoco.MjModel.from_xml_path("path/to/your/model.xml")
 mj_data = mujoco.MjData(mj_model)
+
+# 生成扫描模式（使用Velodyne HDL-64）
+rays_theta, rays_phi = scan_gen.generate_HDL64()
+
+# 创建GPU后端的激光雷达传感器
+lidar = MjLidarWrapper(
+    mj_model,
+    site_name="lidar_site",
+    backend="gpu",  # 使用GPU后端
+    cutoff_dist=100.0,
+    args={
+        'max_candidates': 64,  # GPU后端特定参数：BVH候选节点数
+        'ti_init_args': {'device_memory_GB': 4.0}  # Taichi初始化参数
+    }
+)
+
+# 模拟循环
+with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
+    while viewer.is_running():
+        mujoco.mj_step(mj_model, mj_data)
+        
+        # GPU后端的使用方式与CPU相同
+        lidar.trace_rays(mj_data, rays_theta, rays_phi)
+        points = lidar.get_hit_points()
 ```
 
-其余步骤（如生成扫描模式、创建激光雷达实例、可视化等）和上面的方法一致。
+#### Wrapper方式的参数说明
 
-运行程序，查看效果：
+```python
+MjLidarWrapper(
+    mj_model,           # MuJoCo模型
+    site_name,          # 激光雷达site名称
+    backend="cpu",      # "cpu" 或 "gpu"
+    cutoff_dist=100.0,  # 最大检测距离（米）
+    args={}             # 后端特定参数
+)
 
-```bash
-python examples/example_mjcf.py
+# CPU后端参数 (args)
+{
+    'geomgroup': None,      # 几何体组过滤 (0-5, None表示所有)
+    'bodyexclude': -1       # 排除的body ID（-1表示不排除）
+}
+
+# GPU后端参数 (args)
+{
+    'max_candidates': 32,   # BVH最大候选节点数（16-128）
+    'ti_init_args': {}      # Taichi初始化参数
+}
 ```
 
-### 在自己的MuJoCo环境中使用激光雷达
+### 方式二：直接使用Core（高级用户）
 
-如果要在你自己的MuJoCo环境中使用激光雷达，需要遵循以下步骤：
+Core方式提供对底层API的直接访问，适合需要精细控制的高级用户。
 
-1. **在MJCF文件中添加激光雷达站点**：
-   ```xml
-   <!-- 在你的MJCF文件的适当位置添加以下代码 -->
-   <body name="your_robot_name" pos="0 0 1" quat="1 0 0 0">
-     <site name="lidar_site" size="0.001" type='sphere'/>
-   </body>
-   ```
+#### 示例3：CPU Core方式
 
-2. **选择合适的激光雷达扫描模式**：
-   ```python
-   from mujoco_lidar import (
-       LidarSensor, LivoxGenerator, 
-       generate_vlp32, generate_HDL64, generate_os128
-   )
-   from mujoco_lidar.scan_gen import generate_grid_scan_pattern
-   
-   # 选择一种雷达扫描模式:
-   
-   # 1. 使用Velodyne HDL-64E (64线旋转式激光雷达)
-   rays_theta, rays_phi = generate_HDL64()
-   
-   # 2. 使用Velodyne VLP-32C (32线激光雷达)
-   rays_theta, rays_phi = generate_vlp32()
-   
-   # 3. 使用Ouster OS-128 (128线激光雷达)
-   rays_theta, rays_phi = generate_os128()
-   
-   # 4. 使用Livox系列非重复扫描模式
-   # 注意：其他扫描方式是固定的射线角度，只需生成一次即可，但是livox系列是非重复式扫描，
-   # 每次执行 `lidar.update()` 之前都需要执行一次 `livox_generator.sample_ray_angles()`
-   livox_generator = LivoxGenerator("mid360")  # 可选: "avia", "mid40", "mid70", "mid360", "tele"
-   rays_theta, rays_phi = livox_generator.sample_ray_angles()
-   
-   # 5. 自定义网格扫描模式 (水平x垂直分辨率)
-   rays_theta, rays_phi = generate_grid_scan_pattern(
-       num_ray_cols=180,  # 水平分辨率
-       num_ray_rows=32,   # 垂直分辨率
-       theta_range=(-np.pi, np.pi),    # 水平扫描范围（弧度）
-       phi_range=(-np.pi/6, np.pi/6)   # 垂直扫描范围（弧度）
-   )
-   ```
+```python
+import numpy as np
+import mujoco
+from mujoco_lidar.core_cpu.mjlidar_cpu import MjLidarCPU
+from mujoco_lidar import scan_gen
 
-3. **创建激光雷达传感器并获取点云**：
-   ```python
-   # 创建mujoco model 和 data
-   mj_model = mujoco.MjModel.from_xml_path('/path/to/mjcf.xml')
-   mj_data = mujoco.MjData(mj_model)
-   
-   # 初始化激光雷达传感器
-   # site_name参数必须与MJCF文件中的site名称匹配
-   lidar = LidarSensor(mj_model, site_name="lidar_site")
-   
-   # 在模拟循环中获取激光雷达点云
-   with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
-       while viewer.is_running:
-           # 更新物理模拟
-           mujoco.mj_step(mj_model, mj_data)
-           
-           # 通常mj_step的频率远高于lidar模拟的频率，此处最好进行分频操作，降低lidar模拟频率
-           # 更新激光雷达数据
-           lidar.update(mj_data, rays_phi, rays_theta)
-           
-           # 获取点云数据
-           points = lidar.get_data_in_local_frame()
-           
-           # 处理点云数据...
-   ```
+# 创建模型
+mj_model = mujoco.MjModel.from_xml_string(xml_string)
+mj_data = mujoco.MjData(mj_model)
+
+# 生成扫描模式
+rays_theta, rays_phi = scan_gen.generate_grid_scan_pattern(64, 16)
+
+# 创建CPU核心实例
+lidar_cpu = MjLidarCPU(
+    mj_model,
+    cutoff_dist=50.0,
+    geomgroup=None,      # 检测所有几何体组
+    bodyexclude=-1       # 不排除任何body
+)
+
+# 模拟循环
+with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
+    while viewer.is_running():
+        mujoco.mj_step(mj_model, mj_data)
+        
+        # 手动构建4x4位姿矩阵
+        pose_4x4 = np.eye(4, dtype=np.float32)
+        pose_4x4[:3, 3] = mj_data.site("lidar_site").xpos
+        pose_4x4[:3, :3] = mj_data.site("lidar_site").xmat.reshape(3, 3)
+        
+        # 更新数据并执行射线追踪
+        lidar_cpu.update(mj_data)
+        lidar_cpu.trace_rays(pose_4x4, rays_theta, rays_phi)
+        
+        # 获取结果
+        points = lidar_cpu.get_hit_points()
+        distances = lidar_cpu.get_distances()
+```
+
+#### 示例4：GPU Core方式（Taichi）
+
+```python
+import numpy as np
+import mujoco
+import taichi as ti
+from mujoco_lidar.core_ti.mjlidar_ti import MjLidarTi
+from mujoco_lidar import scan_gen_livox_ti
+
+# 初始化Taichi（必须在创建MjLidarTi之前）
+ti.init(arch=ti.gpu, device_memory_GB=4.0)
+
+# 创建模型
+mj_model = mujoco.MjModel.from_xml_string(xml_string)
+mj_data = mujoco.MjData(mj_model)
+
+# 使用Livox扫描模式（GPU优化版本）
+livox_gen = scan_gen_livox_ti.LivoxGeneratorTi("mid360")
+
+# 创建GPU核心实例
+lidar_gpu = MjLidarTi(
+    mj_model,
+    cutoff_dist=100.0,
+    max_candidates=64  # BVH候选节点数
+)
+
+# 获取Taichi格式的射线角度
+rays_theta_ti, rays_phi_ti = livox_gen.sample_ray_angles_ti()
+
+# 模拟循环
+with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
+    while viewer.is_running():
+        mujoco.mj_step(mj_model, mj_data)
+        
+        # 手动构建位姿矩阵
+        pose_4x4 = np.eye(4, dtype=np.float32)
+        pose_4x4[:3, 3] = mj_data.site("lidar_site").xpos
+        pose_4x4[:3, :3] = mj_data.site("lidar_site").xmat.reshape(3, 3)
+        
+        # 更新BVH并执行射线追踪
+        lidar_gpu.update(mj_data)
+        lidar_gpu.trace_rays(pose_4x4, rays_theta_ti, rays_phi_ti)
+        
+        # 对于Livox，每次都需要重新采样角度
+        rays_theta_ti, rays_phi_ti = livox_gen.sample_ray_angles_ti()
+        
+        # 获取结果（从GPU拷贝到CPU）
+        points = lidar_gpu.get_hit_points()  # 返回numpy数组
+        distances = lidar_gpu.get_distances()
+```
 
 ## 🤖 ROS集成
 
+MuJoCo-LiDAR提供了完整的ROS1和ROS2集成示例，支持点云发布和场景可视化。
+
 ### ROS1示例
 
+需提前安装ros1相关依赖
+
 ```bash
-# 第一个终端
+# 第一个终端：启动ROS核心
 roscore
 
-# 第二个终端
-python examples/lidar_vis_ros1.py
+# 第二个终端：运行激光雷达仿真（使用GPU后端）
+python examples/lidar_vis_ros1_wrapper.py --lidar mid360 --rate 12
 
-# 第三个终端 使用RViz可视化场景和点云
+# 第三个终端：使用RViz可视化
 rosrun rviz rviz -d examples/config/rviz_config.rviz
 ```
 
-这将在`/lidar_points`话题上发布PointCloud2格式的激光雷达扫描数据。
+### ROS2示例
 
-#### ROS1示例命令行参数
-
-`lidar_vis_ros1.py`支持以下命令行参数：
+**方式一：使用Wrapper（推荐）**
 
 ```bash
-python examples/lidar_vis_ros1.py [options]
+# 第一个终端：运行激光雷达仿真
+python examples/lidar_vis_ros2_wrapper.py --lidar mid360 --rate 12
+
+# 第二个终端：使用RViz2可视化
+ros2 run rviz2 rviz2 -d examples/config/rviz2_config.rviz
+```
+
+**方式二：使用Core（高级）**
+
+```bash
+# 使用底层GPU Core API
+python examples/lidar_vis_ros2.py --lidar mid360 --rate 12
+```
+
+### ROS示例命令行参数
+
+两个ROS示例都支持以下命令行参数：
+
+```bash
+python examples/lidar_vis_ros2_wrapper.py [options]
 
 选项:
   --lidar MODEL      指定激光雷达型号，可选值:
                      - Livox系列: avia, mid40, mid70, mid360, tele
                      - Velodyne系列: HDL64, vlp32
                      - Ouster系列: os128
+                     - 自定义: custom
                      默认值: mid360
-  --profiling        启用性能分析，显示射线追踪的时间统计
-  --verbose          显示详细输出信息，包括位置、方向和时间信息
+  --verbose          显示详细输出信息，包括位置、姿态和性能统计
   --rate HZ          设置点云发布频率(Hz)，默认值: 12
 ```
 
-示例：使用HDL64激光雷达，启用性能分析，设置发布频率为10Hz
+**使用示例：**
+
 ```bash
-python examples/lidar_vis_ros1.py --lidar HDL64 --profiling --rate 10
+# 使用HDL64激光雷达，启用详细输出，设置发布频率为10Hz
+python examples/lidar_vis_ros2_wrapper.py --lidar HDL64 --verbose --rate 10
+
+# 使用Velodyne VLP-32，默认频率
+python examples/lidar_vis_ros2_wrapper.py --lidar vlp32
+
+# 使用自定义扫描模式
+python examples/lidar_vis_ros2_wrapper.py --lidar custom
 ```
 
-#### 键盘交互
+### 键盘交互控制
 
 在ROS示例中，您可以使用键盘控制激光雷达的位置和姿态：
-- `W/A/S/D`: 控制水平移动（前/左/后/右）
-- `Q/E`: 控制高度上升/下降
-- `↑/↓`: 控制俯仰角
-- `←/→`: 控制偏航角
+
+**移动控制：**
+- `W`: 向前移动
+- `S`: 向后移动
+- `A`: 向左移动
+- `D`: 向右移动
+- `Q`: 向上移动
+- `E`: 向下移动
+
+**姿态控制：**
+- `↑`: 俯仰向上
+- `↓`: 俯仰向下
+- `←`: 偏航向左
+- `→`: 偏航向右
+
+**其他：**
 - `ESC`: 退出程序
 
-### ROS2示例
+### ROS话题
 
-```bash
-# 第一个终端
-python examples/lidar_vis_ros2.py
+示例程序发布以下ROS话题：
 
-# 第二个终端 使用RViz2可视化场景和点云
-ros2 run rviz2 rviz2 -d examples/config/rviz_config.rviz
+| 话题名称 | 消息类型 | 描述 |
+|---------|---------|------|
+| `/lidar_points` | `sensor_msgs/PointCloud2` | 激光雷达点云数据 |
+| `/mujoco_scene` | `visualization_msgs/MarkerArray` | MuJoCo场景几何体可视化 |
+| `/tf` | `tf2_msgs/TFMessage` | 激光雷达坐标变换 |
+
+### Wrapper vs Core 在ROS中的区别
+
+**`lidar_vis_ros2_wrapper.py` (Wrapper方式)**：
+- 使用 `MjLidarWrapper` 类
+- 自动处理数据格式转换（numpy ↔ Taichi）
+- 代码更简洁，易于维护
+- 适合大多数应用场景
+
+```python
+from mujoco_lidar import MjLidarWrapper
+
+# 创建Wrapper实例
+lidar = MjLidarWrapper(mj_model, site_name="lidar_site", backend="gpu")
+
+# 简单调用
+lidar.trace_rays(mj_data, rays_theta, rays_phi)
+points = lidar.get_hit_points()  # 自动返回numpy数组
 ```
 
-这将在`/lidar_points`话题上发布PointCloud2格式的激光雷达扫描数据。
+**`lidar_vis_ros2.py` (Core方式)**：
+- 直接使用 `MjLidarTi` 类
+- 需要手动管理Taichi数据格式
+- 需要手动构建4x4位姿矩阵
+- 性能优化空间更大，适合高级用户
 
-#### ROS2示例命令行参数
+```python
+from mujoco_lidar.core_ti.mjlidar_ti import MjLidarTi
+import taichi as ti
 
-`lidar_vis_ros2.py`支持与ROS1示例相同的命令行参数：
+# 必须先初始化Taichi
+ti.init(arch=ti.gpu)
 
-```bash
-python examples/lidar_vis_ros2.py [options]
+# 创建Core实例
+lidar = MjLidarTi(mj_model)
 
-选项:
-  --lidar MODEL      指定激光雷达型号，可选值同ROS1示例
-  --profiling        启用性能分析
-  --verbose          显示详细输出信息
-  --rate HZ          设置点云发布频率(Hz)，默认值: 12
+# 需要Taichi ndarray格式
+rays_theta_ti = ti.ndarray(dtype=ti.f32, shape=n_rays)
+rays_phi_ti = ti.ndarray(dtype=ti.f32, shape=n_rays)
+rays_theta_ti.from_numpy(rays_theta)
+rays_phi_ti.from_numpy(rays_phi)
+
+# 手动构建位姿矩阵
+pose_4x4 = np.eye(4, dtype=np.float32)
+pose_4x4[:3, 3] = mj_data.site("lidar_site").xpos
+pose_4x4[:3, :3] = mj_data.site("lidar_site").xmat.reshape(3, 3)
+
+# 调用
+lidar.update(mj_data)
+lidar.trace_rays(pose_4x4, rays_theta_ti, rays_phi_ti)
+points = lidar.get_hit_points()  # 从GPU拷贝到CPU
 ```
 
-键盘操作和ROS1一致。
+## ⚡ 性能优化与最佳实践
 
-## 📝 待办事项
+### 1. 减少射线追踪频率
 
-- [ ] **网格自动简化**：自动简化网格以提高性能
-- [ ] **网格AABB加速**：使用轴对齐包围盒加速网格碰撞检测
-- [ ] **BVH树加速**：使用层次包围盒树加速射线-网格相交测试
+激光雷达不需要和物理仿真同频运行：
 
-## 📈 性能测试
+```python
+lidar_rate = 10  # 激光雷达10Hz
+physics_rate = 60  # 物理仿真60Hz
+step_cnt = 0
 
-运行性能测试以评估激光雷达仿真性能：
-
-```bash
-python examples/test_speed.py --verbose
+with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
+    while viewer.is_running():
+        # 高频物理仿真
+        mujoco.mj_step(mj_model, mj_data)
+        step_cnt += 1
+        
+        # 低频激光雷达扫描
+        if step_cnt % (physics_rate // lidar_rate) == 0:
+            lidar.trace_rays(mj_data, rays_theta, rays_phi)
+            points = lidar.get_hit_points()
 ```
 
-这将测试115,200射线（相当于1800×64分辨率）的性能，并显示详细的计时信息。
+### 2. 复用射线角度数组
 
-性能测试程序支持的参数：
-- `--verbose`: 显示更多调试信息
-- `--skip-test`: 跳过性能测试，只显示演示
-- `--zh`: 图表使用中文
-- `--save-fig`: 保存图表
+对于固定扫描模式（非Livox），只生成一次角度数组：
 
-在三款不同配置电脑上测试了性能，其中甚至包含一台MacBook（是的 :) 我们的程序和MuJoCo一样，是跨平台的）
+```python
+# ✅ 正确：在循环外生成一次
+rays_theta, rays_phi = scan_gen.generate_HDL64()
 
-在较少geom数量（<200）的场景中，使用115,200条射线进行模拟，可以达到500Hz+的仿真效率，这真的是太快了！
+while True:
+    lidar.trace_rays(mj_data, rays_theta, rays_phi)
 
-| 台式机<br />Intel Xeon w5-3435X<br />Nvidia 6000Ada    | MacBook M3Max 48GB<br /> | 拯救者 R9000P2022 <br />R7-5800H<br />Nvidia RTX 3060 |
-| :----------------------------------------------------------: | :----------------: | :---------------------------------------: |
-| ![pro_1_zh](./assets/img_pro_1_zh.jpg) | ![pro_2_zh](./assets/img_pro_2_zh.jpg) | ![pro_1_zh](./assets/img_pro_3_zh.jpg) |
+# ❌ 错误：每次循环都重新生成（浪费）
+while True:
+    rays_theta, rays_phi = scan_gen.generate_HDL64()  # 不必要！
+    lidar.trace_rays(mj_data, rays_theta, rays_phi)
+```
+
+### 3. GPU后端使用Taichi数组
+
+使用GPU Core方式时，避免频繁的numpy↔Taichi转换：
+
+```python
+import taichi as ti
+
+# ✅ 正确：使用Taichi ndarray
+rays_theta_ti = ti.ndarray(dtype=ti.f32, shape=n_rays)
+rays_phi_ti = ti.ndarray(dtype=ti.f32, shape=n_rays)
+rays_theta_ti.from_numpy(rays_theta)  # 只转换一次
+rays_phi_ti.from_numpy(rays_phi)
+
+while True:
+    lidar.trace_rays(pose_4x4, rays_theta_ti, rays_phi_ti)  # 直接使用
+
+# ❌ 错误：每次都转换（开销大）
+while True:
+    theta_ti = ti.ndarray(dtype=ti.f32, shape=n_rays)
+    theta_ti.from_numpy(rays_theta)  # 频繁转换！
+    # ...
+```
+
+### 4. Livox扫描模式优化
+
+使用GPU后端时，对于Livox非重复扫描，使用GPU优化版本：
+
+```python
+from mujoco_lidar import scan_gen_livox_ti
+import taichi as ti
+
+ti.init(arch=ti.gpu)
+
+# ✅ GPU优化版本：直接返回Taichi数组，无需转换
+livox_gen = scan_gen_livox_ti.LivoxGeneratorTi("mid360")
+rays_theta_ti, rays_phi_ti = livox_gen.sample_ray_angles_ti()
+
+# ❌ CPU版本：每次都要numpy→Taichi转换
+livox_gen = scan_gen.LivoxGenerator("mid360")
+rays_theta, rays_phi = livox_gen.sample_ray_angles()
+# 还需要转换为Taichi格式...
+```
+
+### 5. 合理设置场景复杂度
+
+- 移除视野外的几何体
+- 使用geomgroup组织场景
+- 简化不重要物体的几何形状
+- 对于网格模型，考虑简化面数
 
 ## 📄 许可证
 
 本项目采用MIT许可证 - 详见[LICENSE](LICENSE)文件
-
-
-

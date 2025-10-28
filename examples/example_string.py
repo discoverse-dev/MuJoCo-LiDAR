@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('TkAgg')  # 明确指定后端
 
-from mujoco_lidar import LidarSensor, generate_grid_scan_pattern
+from mujoco_lidar import MjLidarWrapper, scan_gen
 
 simple_demo_scene = """
 <mujoco model="simple_demo">
@@ -51,7 +51,7 @@ lidar_sim_rate = 15
 running = True
 point_queue = queue.Queue(maxsize=5)  # 限制队列大小防止内存溢出
 # MuJoCo仿真线程函数
-def mujoco_simulation_thread(mj_model, mj_data, lidar_sensor, ray_phi, ray_theta):
+def mujoco_simulation_thread(mj_model, mj_data, lidar_sensor, rays_phi, rays_theta):
     global running, point_queue
     lidar_sim_cnt = 0
     
@@ -69,10 +69,10 @@ def mujoco_simulation_thread(mj_model, mj_data, lidar_sensor, ray_phi, ray_theta
 
                 if mj_data.time * lidar_sim_rate > lidar_sim_cnt:
                     # 更新激光雷达位置
-                    lidar_sensor.update(mj_data, ray_phi, ray_theta)
+                    lidar_sensor.trace_rays(mj_data, rays_theta, rays_phi)
 
                     # 执行光线追踪
-                    points = lidar_sensor.get_data_in_local_frame()
+                    points = lidar_sensor.get_hit_points()
                     if lidar_sim_cnt == 0:
                         print("points basic info:")
                         print("  .shape:", points.shape)
@@ -119,20 +119,20 @@ def main():
     mujoco.mj_forward(mj_model, mj_data)
 
     # 生成网格扫描模式
-    ray_theta, ray_phi = generate_grid_scan_pattern(num_ray_cols=64, num_ray_rows=16)
+    rays_theta, rays_phi = scan_gen.generate_grid_scan_pattern(num_ray_cols=64, num_ray_rows=16)
 
     exclode_body_id = mj_model.body("your_robot_name").id
     print("exclude body id:", exclode_body_id)
 
     # 创建激光雷达传感器
-    lidar_sensor = LidarSensor(mj_model, site_name="lidar_site", bodyexclude=exclode_body_id)
-    lidar_sensor.update(mj_data, ray_phi, ray_theta)
-    points = lidar_sensor.get_data_in_local_frame()
+    lidar_sensor = MjLidarWrapper(mj_model, site_name="lidar_site", backend="cpu", args={"bodyexclude":exclode_body_id})
+    lidar_sensor.trace_rays(mj_data, rays_theta, rays_phi)
+    points = lidar_sensor.get_hit_points()
 
     # 启动MuJoCo仿真线程
     sim_thread = threading.Thread(
-        target=mujoco_simulation_thread, 
-        args=(mj_model, mj_data, lidar_sensor, ray_phi, ray_theta)
+        target=mujoco_simulation_thread,
+        args=(mj_model, mj_data, lidar_sensor, rays_phi, rays_theta)
     )
     sim_thread.daemon = True
     sim_thread.start()

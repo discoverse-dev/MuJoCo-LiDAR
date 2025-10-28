@@ -15,11 +15,8 @@ import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import PointCloud2, PointField
 from visualization_msgs.msg import MarkerArray
 
-
-from mujoco_lidar import (
-    LidarSensor, LivoxGenerator, 
-    generate_vlp32, generate_HDL64, generate_os128
-)
+from mujoco_lidar import MjLidarWrapper
+from mujoco_lidar import scan_gen
 
 from mujoco_lidar.mj_lidar_utils import create_demo_scene, KeyboardListener, create_marker_from_geom
 
@@ -132,15 +129,15 @@ if __name__ == "__main__":
 
     use_livox_lidar = False
     if args.lidar in {"avia", "mid40", "mid70", "mid360", "tele"}:
-        livox_generator = LivoxGenerator(args.lidar)
+        livox_generator = scan_gen.LivoxGenerator(args.lidar)
         rays_theta, rays_phi = livox_generator.sample_ray_angles()
         use_livox_lidar = True
     elif args.lidar == "HDL64":
-        rays_theta, rays_phi = generate_HDL64()
+        rays_theta, rays_phi = scan_gen.generate_HDL64()
     elif args.lidar == "vlp32":
-        rays_theta, rays_phi = generate_vlp32()
+        rays_theta, rays_phi = scan_gen.generate_vlp32()
     elif args.lidar == "os128":
-        rays_theta, rays_phi = generate_os128()
+        rays_theta, rays_phi = scan_gen.generate_os128()
     else:
         raise ValueError(f"不支持的LiDAR型号: {args.lidar}")
 
@@ -176,7 +173,7 @@ if __name__ == "__main__":
     scene = mujoco.MjvScene(mj_model, maxgeom=10000)
 
     # 创建激光雷达传感器
-    lidar = LidarSensor(mj_model, site_name="lidar_site")
+    lidar = MjLidarWrapper(mj_model, site_name="lidar_site", backend="cpu")
 
     # 设置激光雷达位置
     lidar_position = np.array([0.0, 0.0, 1.0], dtype=np.float32)
@@ -234,10 +231,10 @@ if __name__ == "__main__":
                         rays_theta, rays_phi = livox_generator.sample_ray_angles()
 
                     # 更新激光雷达数据
-                    lidar.update(mj_data, rays_phi, rays_theta)
+                    lidar.trace_rays(mj_data, rays_theta, rays_phi)
 
                     # 获取激光雷达点云
-                    points = lidar.get_data_in_local_frame()
+                    points_local = lidar.get_hit_points()
                     end_time = time.time()
 
                     # 获取激光雷达位置和方向
@@ -259,8 +256,8 @@ if __name__ == "__main__":
                     broadcast_tf(tf_broadcaster, "world", "lidar", lidar_position, lidar_orientation)
 
                     # 发布点云
-                    publish_point_cloud(pub_taichi, points, "lidar")
-                
+                    publish_point_cloud(pub_taichi, points_local, "lidar")
+
     except rospy.ROSInterruptException:
         pass
     except Exception as e:

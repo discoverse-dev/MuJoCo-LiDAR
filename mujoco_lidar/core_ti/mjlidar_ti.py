@@ -18,7 +18,8 @@ from tibvh.geometry import (
 
 @ti.data_oriented
 class MjLidarTi:
-    def __init__(self, mj_model:mujoco.MjModel, cutoff_dist:float=100.0, max_candidates: int = 32):
+    def __init__(self, mj_model:mujoco.MjModel, 
+                 cutoff_dist:float=100.0, max_candidates: int = 32):
         self.max_candidates = max_candidates
         self._cutoff = min(cutoff_dist, 1e9)
 
@@ -86,8 +87,6 @@ class MjLidarTi:
                 mesh_aabb_maxs = ti.Vector.field(3, dtype=ti.f32, shape=self.nface)
                 mesh_aabb_mins.from_numpy(tri.min(axis=1).astype(np.float32))
                 mesh_aabb_maxs.from_numpy(tri.max(axis=1).astype(np.float32))
-
-        print(self.ngeom, model_nface, self.nface)
 
         self.tri_v0 = ti.Vector.field(3, dtype=ti.f32, shape=max(self.nface, 1))
         self.tri_v1 = ti.Vector.field(3, dtype=ti.f32, shape=max(self.nface, 1))
@@ -245,9 +244,9 @@ class MjLidarTi:
 
             if best_t < self._cutoff:
                 distances[i] = best_t
-                hit_pts[i] = ti.Vector([o.x + best_t * ray_dir.x,
-                                        o.y + best_t * ray_dir.y,
-                                        o.z + best_t * ray_dir.z])
+                hit_pts[i] = ti.Vector([best_t * dir_local.x,
+                                        best_t * dir_local.y,
+                                        best_t * dir_local.z])
             else:
                 distances[i] = -1.0
                 hit_pts[i] = ti.Vector([0.0, 0.0, 0.0])
