@@ -1,17 +1,28 @@
-from mujoco_lidar.core import MjLidarSensor
+# Lazy import to avoid loading taichi when not needed
+# Import the wrapper class directly
 from mujoco_lidar.lidar_wrapper import MjLidarWrapper
-from mujoco_lidar.scan_gen import \
-    LivoxGenerator, \
-    generate_HDL64, \
-    generate_vlp32, \
-    generate_os128, \
-    generate_grid_scan_pattern, \
-    create_lidar_single_line
 
 __all__ = [
-    "MjLidarSensor", 
     "MjLidarWrapper",
-    "LivoxGenerator", 
-    "generate_HDL64", "generate_vlp32", "generate_os128", 
-    "generate_grid_scan_pattern", "create_lidar_single_line"
+    # Scan generation functions (imported lazily via __getattr__)
+    "LivoxGeneratorTi",
+    "LivoxGenerator",  # From scan_gen_livox (requires taichi)
+    "generate_HDL64",  # From scan_gen (no taichi needed)
+    "generate_vlp32", 
+    "generate_os128",
+    "generate_grid_scan_pattern",
+    "create_lidar_single_line"
 ]
+
+def __getattr__(name):
+    """Lazy import for scan generation functions to avoid importing taichi unless needed."""
+    # LivoxGenerator requires taichi - import from scan_gen_livox
+    if name == "LivoxGeneratorTi":
+        from mujoco_lidar.scan_gen_livox_ti import LivoxGeneratorTi
+        return LivoxGeneratorTi
+    # Other scan functions don't require taichi - import from scan_gen
+    elif name in ["LivoxGenerator", "generate_HDL64", "generate_vlp32", "generate_os128", 
+                  "generate_grid_scan_pattern", "create_lidar_single_line"]:
+        from mujoco_lidar import scan_gen
+        return getattr(scan_gen, name)
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

@@ -1,89 +1,181 @@
-import time
 import mujoco
 import numpy as np
-import taichi as ti
-
-from mujoco_lidar.core import MjLidarSensor
 
 class MjLidarWrapper:
-    def __init__(self, mj_model:mujoco.MjModel, mj_data:mujoco.MjData, site_name:str, args:dict={}):
-        self.scene = mujoco.MjvScene(mj_model, maxgeom=10000)
-        mujoco.mj_forward(mj_model, mj_data)
-        mujoco.mjv_updateScene(
-            mj_model, mj_data, mujoco.MjvOption(), 
-            None, mujoco.MjvCamera(), 
-            mujoco.mjtCatBit.mjCAT_ALL.value, self.scene)
-
-        self.lidar_sensor = MjLidarSensor(mj_model, self.scene, enable_profiling=args.get("enable_profiling", False), verbose=args.get("verbose", False))
-        for i in range(self.lidar_sensor.n_geoms):
-            if mj_model.geom(self.scene.geoms[i].objid).contype[0] == 0:
-                self.lidar_sensor.geom_types[i] = -1
+    """
+    MuJoCo LiDAR wrapper that supports both CPU and GPU backends.
+    
+    Args:
+        mj_model (mujoco.MjModel): MuJoCo model object
+        site_name (str): Name of the LiDAR site in the MuJoCo model
+        backend (str): Computation backend, either 'cpu' or 'gpu'. Default: 'gpu'
+        cutoff_dist (float): Maximum ray tracing distance in meters. Default: 100.0
+        args (dict): Additional backend-specific arguments. Default: {}
+        
+            CPU Backend Arguments:
+                geomgroup (int | None): Geometry group filter (0-5, or None for all). Default: None
+                    - None: Detect all geometries
+                    - 0-5: Only detect geometries in the specified group
+                bodyexclude (int): Body ID to exclude from detection. Default: -1
+                    - -1: Don't exclude any body
+                    - >= 0: Exclude all geometries of the specified body
+                
+            GPU Backend Arguments:
+                max_candidates (int): Maximum number of BVH candidate nodes. Default: 32
+                    - Larger values: More accurate but slower
+                    - Smaller values: Faster but may miss collisions
+                    - Recommended: 16-32 (simple), 32-64 (medium), 64-128 (complex)
+                ti_init_args (dict): Arguments passed to taichi.init(). Default: {}
+                    - device_memory_GB (float): GPU memory limit in GB
+                    - debug (bool): Enable debug mode
+                    - log_level (str): 'trace', 'debug', 'info', 'warn', 'error'
+    
+    Examples:
+        >>> # CPU backend with body exclusion
+        >>> lidar = MjLidarWrapper(
+        ...     mj_model=model,
+        ...     site_name="lidar_site",
+        ...     backend="cpu",
+        ...     cutoff_dist=50.0,
+        ...     args={'bodyexclude': robot_body_id}
+        ... )
+        
+        >>> # GPU backend for complex scenes
+        >>> lidar = MjLidarWrapper(
+        ...     mj_model=model,
+        ...     site_name="lidar_site",
+        ...     backend="gpu",
+        ...     cutoff_dist=100.0,
+        ...     args={
+        ...         'max_candidates': 64,
+        ...         'ti_init_args': {'device_memory_GB': 4.0}
+        ...     }
+        ... )
+    
+    See Also:
+        ARGS_DOCUMENTATION.md for detailed parameter descriptions and usage examples
+    """
+    
+    def __init__(self, mj_model, site_name:str,
+                 backend:str="gpu", cutoff_dist:float=100.0, args:dict={}):
+        self.backend = backend
+        self.mj_model = mj_model
+        self.cutoff_dist = cutoff_dist
+        self.args = args
+        
+        # Lazy import backend modules based on the selected backend
+        if backend == "gpu":
+            self._init_gpu_backend()
+        elif backend == "cpu":
+            self._init_cpu_backend()
+        else:
+            raise ValueError(f"Unsupported backend: {backend}, choose from 'cpu' or 'gpu'")
 
         self.site_name = site_name
-        self.sensor_pose = np.eye(4, dtype=np.float32)
-        self.update_sensor_pose(mj_data, site_name)
+        self._sensor_pose = np.eye(4, dtype=np.float32)
+
+    def _init_gpu_backend(self):
+        """Initialize GPU backend with Taichi"""
+        try:
+            # Lazy import: only import when GPU backend is selected
+            from mujoco_lidar.core_ti.mjlidar_ti import MjLidarTi
+            import taichi as ti
+            
+            # Initialize Taichi if not already done
+            if not hasattr(ti, '_is_initialized') or not ti._is_initialized:
+                ti.init(arch=ti.gpu, **self.args.get('ti_init_args', {}))
+            
+            # Create GPU backend instance
+            max_candidates = self.args.get('max_candidates', 32)
+            self._backend_instance = MjLidarTi(
+                self.mj_model, 
+                cutoff_dist=self.cutoff_dist,
+                max_candidates=max_candidates
+            )
+            
+        except ImportError as e:
+            raise ImportError(
+                f"Failed to import GPU backend dependencies. "
+                f"Please install taichi: pip install taichi\n"
+                f"Error: {e}"
+            )
+    
+    def _init_cpu_backend(self):
+        """Initialize CPU backend without Taichi dependencies"""
+        try:
+            # Lazy import: only import when CPU backend is selected
+            from mujoco_lidar.core_cpu.mjlidar_cpu import MjLidarCPU
+            
+            # Create CPU backend instance
+            geomgroup = self.args.get('geomgroup', None)
+            bodyexclude = self.args.get('bodyexclude', -1)
+            self._backend_instance = MjLidarCPU(
+                self.mj_model,
+                cutoff_dist=self.cutoff_dist,
+                geomgroup=geomgroup,
+                bodyexclude=bodyexclude
+            )
+            
+        except ImportError as e:
+            raise ImportError(
+                f"Failed to import CPU backend dependencies.\n"
+                f"Error: {e}"
+            )
 
     @property
     def sensor_position(self):
-        return self.sensor_pose[:3,3].copy()
+        return self._sensor_pose[:3,3].copy()
 
     @property
     def sensor_rotation(self):
-        return self.sensor_pose[:3,:3].copy()
-
-    def update_scene(self, mj_model:mujoco.MjModel, mj_data:mujoco.MjData):
-        self.start_total = time.time() if self.lidar_sensor.enable_profiling else 0
-        mujoco.mj_forward(mj_model, mj_data)
-        mujoco.mjv_updateScene(
-            mj_model, mj_data, mujoco.MjvOption(), 
-            None, mujoco.MjvCamera(), 
-            mujoco.mjtCatBit.mjCAT_ALL.value, self.scene)
-
-        # 更新几何体位置
-        self.lidar_sensor.update_geom_positions(self.scene)
+        return self._sensor_pose[:3,:3].copy()
 
     def update_sensor_pose(self, mj_data:mujoco.MjData, site_name:str):
-        self.sensor_pose[:3,:3] = mj_data.site(site_name).xmat.reshape(3,3)
-        self.sensor_pose[:3,3] = mj_data.site(site_name).xpos
+        self._sensor_pose[:3,:3] = mj_data.site(site_name).xmat.reshape(3,3)
+        self._sensor_pose[:3,3] = mj_data.site(site_name).xpos
 
-    def get_lidar_points(self, rays_phi, rays_theta, mj_data:mujoco.MjData, site_name:str=None):
+    def trace_rays(self, mj_data: mujoco.MjData, ray_theta: np.ndarray, ray_phi: np.ndarray, site_name:str=None):
+        """
+        Trace rays from a given pose with specified angles.
+        
+        Args:
+            pose_4x4: 4x4 transformation matrix (position + rotation)
+            ray_theta: Horizontal angles (azimuth)
+            ray_phi: Vertical angles (elevation)
+        """
+
         if site_name is None:
             self.update_sensor_pose(mj_data, self.site_name)
         else:
             self.update_sensor_pose(mj_data, site_name)
-        
-        assert rays_phi.shape == rays_theta.shape, "rays_phi和rays_theta的形状必须相同"
-        n_rays = rays_phi.shape[0]
 
-        if self.lidar_sensor.cached_n_rays != n_rays:
-            self.lidar_sensor.rays_phi_ti = ti.ndarray(dtype=ti.f32, shape=n_rays)
-            self.lidar_sensor.rays_theta_ti = ti.ndarray(dtype=ti.f32, shape=n_rays)
-            self.lidar_sensor.hit_points = ti.Vector.field(3, dtype=ti.f32, shape=n_rays)
-            # 同时创建临时字段
-            self.lidar_sensor.hit_points_world = ti.Vector.field(3, dtype=ti.f32, shape=n_rays)
-            self.lidar_sensor.hit_mask = ti.field(dtype=ti.i32, shape=n_rays)
-            self.lidar_sensor.cached_n_rays = n_rays
-
-        self.lidar_sensor.sensor_pose_ti.from_numpy(self.sensor_pose)
-        self.lidar_sensor.rays_phi_ti.from_numpy(rays_phi.astype(np.float32))
-        self.lidar_sensor.rays_theta_ti.from_numpy(rays_theta.astype(np.float32))
-
-        # 准备阶段结束，记录时间
-        prepare_end = time.time() if self.lidar_sensor.enable_profiling else 0
-        self.lidar_sensor.prepare_time = (prepare_end - self.start_total) * 1000 if self.lidar_sensor.enable_profiling else 0
-
-        kernel_start = time.time() if self.lidar_sensor.enable_profiling else 0
-        self.lidar_sensor.trace_rays(
-            self.lidar_sensor.sensor_pose_ti,
-            self.lidar_sensor.rays_phi_ti,
-            self.lidar_sensor.rays_theta_ti,
-            n_rays,
-            self.lidar_sensor.hit_points
-        )
-        ti.sync()
-        kernel_end = time.time() if self.lidar_sensor.enable_profiling else 0
-        self.lidar_sensor.kernel_time = (kernel_end - kernel_start) * 1000 if self.lidar_sensor.enable_profiling else 0
-
-        points_local = self.lidar_sensor.hit_points.to_numpy()
-        return points_local
-
+        self._backend_instance.update(mj_data)
+        if self.backend == "gpu":
+            # GPU backend expects Taichi ndarrays
+            import taichi as ti
+            
+            # Convert numpy arrays to Taichi ndarrays if necessary
+            if isinstance(ray_theta, np.ndarray):
+                theta_ti = ti.ndarray(dtype=ti.f32, shape=ray_theta.shape[0])
+                theta_ti.from_numpy(ray_theta.astype(np.float32))
+            else:
+                theta_ti = ray_theta
+                
+            if isinstance(ray_phi, np.ndarray):
+                phi_ti = ti.ndarray(dtype=ti.f32, shape=ray_phi.shape[0])
+                phi_ti.from_numpy(ray_phi.astype(np.float32))
+            else:
+                phi_ti = ray_phi
+            
+            self._backend_instance.trace_rays(self._sensor_pose, theta_ti, phi_ti)
+        else:
+            # CPU backend uses numpy arrays directly
+            self._backend_instance.trace_rays(self._sensor_pose, ray_theta, ray_phi)
+    
+    def get_hit_points(self) -> np.ndarray:
+        """Get hit points from the last ray tracing"""
+        return self._backend_instance.get_hit_points()
+    
+    def get_distances(self) -> np.ndarray:
+        """Get distances from the last ray tracing"""
+        return self._backend_instance.get_distances()

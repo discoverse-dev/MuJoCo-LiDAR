@@ -1,59 +1,25 @@
+"""
+激光雷达扫描模式生成函数
+
+此模块提供各种激光雷达的扫描模式生成函数，不依赖 taichi。
+如需使用 Livox LiDAR，请从 scan_gen_livox 导入 LivoxGenerator。
+"""
 import os
 import numpy as np
 from functools import lru_cache
 
 class LivoxGenerator:
-    """
-    生成 Livox 激光雷达的扫描模式
-    """
+    """生成 Livox 激光雷达的扫描模式"""
     livox_lidar_params = {
-        "avia": {
-            "laser_min_range": 0.1,
-            "laser_max_range": 200.0,
-            "horizontal_fov": 70.4,
-            "vertical_fov": 77.2,
-            "samples": 24000
-        },
-        "HAP": {
-            "laser_min_range": 0.1,
-            "laser_max_range": 200.0,
-            "samples": 45300,
-            "downsample": 1
-        },
-        "horizon" : {
-            "laser_min_range": 0.1,
-            "laser_max_range": 200.0,
-            "horizontal_fov": 81.7,
-            "vertical_fov": 25.1,
-            "samples": 24000,
-        },
-        "mid40" : {
-            "laser_min_range": 0.1,
-            "laser_max_range": 200.0,
-            "horizontal_fov": 81.7,
-            "vertical_fov": 25.1,
-            "samples": 24000,
-        },
-        "mid70" : {
-            "laser_min_range": 0.1,
-            "laser_max_range": 200.0,
-            "horizontal_fov": 70.4,
-            "vertical_fov": 70.4,
-            "samples": 10000,
-        },
-        "mid360" : {
-            "laser_min_range": 0.1,
-            "laser_max_range": 200.0,
-            "samples": 24000,
-        },
-        "tele" : {
-            "laser_min_range": 0.1,
-            "laser_max_range": 200.0,
-            "horizontal_fov": 14.5,
-            "vertical_fov": 16.1,
-            "samples": 24000,
-        }
+        "avia": {"laser_min_range": 0.1, "laser_max_range": 200.0, "horizontal_fov": 70.4, "vertical_fov": 77.2, "samples": 24000},
+        "HAP": {"laser_min_range": 0.1, "laser_max_range": 200.0, "samples": 45300, "downsample": 1},
+        "horizon": {"laser_min_range": 0.1, "laser_max_range": 200.0, "horizontal_fov": 81.7, "vertical_fov": 25.1, "samples": 24000},
+        "mid40": {"laser_min_range": 0.1, "laser_max_range": 200.0, "horizontal_fov": 81.7, "vertical_fov": 25.1, "samples": 24000},
+        "mid70": {"laser_min_range": 0.1, "laser_max_range": 200.0, "horizontal_fov": 70.4, "vertical_fov": 70.4, "samples": 10000},
+        "mid360": {"laser_min_range": 0.1, "laser_max_range": 200.0, "samples": 24000},
+        "tele": {"laser_min_range": 0.1, "laser_max_range": 200.0, "horizontal_fov": 14.5, "vertical_fov": 16.1, "samples": 24000},
     }
+
     def __init__(self, name):
         if name in self.livox_lidar_params:
             self.laser_min_range = self.livox_lidar_params[name]["laser_min_range"]
@@ -85,7 +51,6 @@ class LivoxGenerator:
 
 # =======================================================================
 # 1. Velodyne HDL-64 (任意 360° 旋转式激光雷达)
-# https://www.mapix.com/wp-content/uploads/2018/07/63-9194_Rev-J_HDL-64E_S3_Spec-Sheet-Web.pdf
 # =======================================================================
 def generate_HDL64(     # |参数            | Velodyne HDL-64
     f_rot=10.0,            # |转速 (Hz)       |  5-20Hz

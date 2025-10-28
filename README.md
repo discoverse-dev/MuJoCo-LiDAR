@@ -1,6 +1,6 @@
-# MuJoCo-LiDAR: High-Performance LiDAR Simulation for MuJoCo
+# MuJoCo-LiDAR: High-Performance LiDAR Simulation Based on MuJoCo
 
-A high-performance LiDAR simulation tool designed for MuJoCo, powered by Taichi programming language.
+A high-performance LiDAR simulation tool based on MuJoCo, supporting both CPU and GPU backends, with powerful GPU parallel computing powered by the Taichi programming language.
 
 ![demo](./assets/lidar_rviz.png)
 
@@ -8,77 +8,103 @@ A high-performance LiDAR simulation tool designed for MuJoCo, powered by Taichi 
 
 ## 🌟 Features
 
-- **GPU-Accelerated**: Uses Taichi for efficient parallel computing on GPUs
-- **High Performance**: Can generate 1,000,000+ rays in milliseconds
-- **Multiple LiDAR Models**: Supports various LiDAR scan patterns:
-  - Livox non-repetitive scanning: mid360, mid70, mid40, tele, avia
+- **Dual Backend Support**:
+  - **CPU Backend**: Based on MuJoCo's native `mj_multiRay` function, no GPU required, simple and easy to use
+  - **GPU Backend**: Utilizes Taichi for efficient GPU parallel computing, higher performance, supports mesh scenes with millions of faces
+- **High Performance**: GPU backend can generate 1 million+ rays in milliseconds
+- **Dynamic Scenes**: Supports real-time BVH construction for dynamic scenes, enabling fast LiDAR scanning
+- **Multiple LiDAR Models**: Supports various scanning patterns:
+  - Livox non-repetitive scanning modes: mid360, mid70, mid40, tele, avia
   - Velodyne HDL-64E, VLP-32C
   - Ouster OS-128
-  - Customizable grid scan pattern
-- **Accurate Physics**: Ray-casting against all MuJoCo geometry types: boxes, spheres, ellipsoids, cylinders, capsules and planes
-- **ROS Integration**: Ready-to-use examples for both ROS1 and ROS2
+  - Customizable grid scanning patterns
+- **Accurate Physical Simulation**: Ray tracing for all MuJoCo geometry types: box, sphere, ellipsoid, cylinder, capsule, plane, and mesh
+- **Flexible API**: Provides both unified Wrapper interface and low-level Core interface
+- **ROS Integration**: Ready-to-use ROS1 and ROS2 examples
 
 ## 🔧 Installation
 
-### Requirements
+### System Requirements
 
+**Basic Dependencies (required for both CPU and GPU backends):**
 - Python >= 3.8
 - MuJoCo >= 3.2.0
-- Taichi >= 1.6.0
 - NumPy >= 1.20.0
 
-### Quick Install
+**Additional GPU Backend Dependencies:**
+- Taichi >= 1.6.0
+- TIBVH (Taichi-based Linear BVH) - for high-performance spatial data structures and geometry processing
+
+### Quick Installation
 
 ```bash
 # Clone the repository
 git clone https://github.com/TATP-233/MuJoCo-LiDAR.git
 cd MuJoCo-LiDAR
 
-# Install with pip
+# 1. Install CPU backend only (lightweight, no GPU required)
 pip install -e .
+
+# 2. Install GPU backend dependencies (requires GPU support)
+pip install -e ".[gpu]"
 ```
+
+**Note**:
+- CPU backend does not require Taichi and TIBVH, works out of the box
+- GPU backend requires a Taichi-supported GPU, currently tested on Nvidia 4090, MacBook M3 Max, MacBook M4 Air
 
 ## 📚 Usage Examples
 
-### Basic Usage
+MuJoCo-LiDAR provides two usage approaches and two backend options:
 
-MJ-LiDAR provides two ways to use the library: directly through the core `MjLidarSensor` class or via the more user-friendly `MjLidarWrapper` class. The following examples showcase the wrapper class, which is more suitable for beginners.
+### Usage Approach Comparison
 
-#### Simple Example: Adding LiDAR to a MuJoCo Environment
+1. **Wrapper Approach (Recommended)**: Uses `MjLidarWrapper` class, provides a unified high-level interface, automatically handles backend differences
+2. **Core Approach (Advanced)**: Directly uses low-level `MjLidarCPU` or `MjLidarTi` classes, provides fine-grained control
 
-Here's a complete example `mujoco_lidar/examples/example_string.py` showing how to add a LiDAR to a MuJoCo environment and visualize the point cloud:
+### Backend Selection
+
+1. **CPU Backend**:
+   - Advantages: No GPU required, fewer dependencies, easy to deploy
+   - Use Cases: Simple scenes, fewer rays (<10000), no GPU environment, scenes with only simple geometric primitives, no complex meshes
+   - Performance: Uses MuJoCo's native `mj_multiRay` function
+
+2. **GPU Backend**:
+   - Advantages: High performance, suitable for large-scale ray tracing
+   - Use Cases: Complex scenes, large number of rays (>10000), real-time performance requirements, complex mesh files
+   - Performance: GPU parallel computing, millisecond-level processing of 1 million+ rays
+
+### Approach 1: Using Wrapper (Recommended, Simple and Easy)
+
+The Wrapper approach provides a unified interface that automatically handles CPU and GPU backend differences. This is the **recommended approach**.
+
+#### Example 1: CPU Backend + Wrapper (Scene Defined via String)
 
 ```python
 import time
-import threading
 import mujoco
 import mujoco.viewer
-import matplotlib.pyplot as plt
 
-# Import LiDAR wrapper and scan pattern generator
-from mujoco_lidar.lidar_wrapper import MjLidarWrapper
-from mujoco_lidar.scan_gen import generate_grid_scan_pattern
+from mujoco_lidar import MjLidarWrapper
+from mujoco_lidar import scan_gen
 
-# 1. Define a simple MuJoCo scene (with various geometries and LiDAR site)
+# Define a simple MuJoCo scene
 simple_demo_scene = """
 <mujoco model="simple_demo">
     <worldbody>
-        <!-- Ground + four walls -->
+        <!-- Ground + Four Walls -->
         <geom name="ground" type="plane" size="5 5 0.1" pos="0 0 0" rgba="0.2 0.9 0.9 1"/>
         <geom name="wall1" type="box" size="1e-3 3 1" pos=" 3 0 1" rgba="0.9 0.9 0.9 1"/>
         <geom name="wall2" type="box" size="1e-3 3 1" pos="-3 0 1" rgba="0.9 0.9 0.9 1"/>
         <geom name="wall3" type="box" size="3 1e-3 1" pos="0  3 1" rgba="0.9 0.9 0.9 1"/>
         <geom name="wall4" type="box" size="3 1e-3 1" pos="0 -3 1" rgba="0.9 0.9 0.9 1"/>
 
-        <!-- Different geometries -->
+        <!-- Various Geometries -->
         <geom name="box1" type="box" size="0.5 0.5 0.5" pos="2 0 0.5" euler="45 -45 0" rgba="1 0 0 1"/>
         <geom name="sphere1" type="sphere" size="0.5" pos="0 2 0.5" rgba="0 1 0 1"/>
         <geom name="cylinder1" type="cylinder" size="0.4 0.6" pos="0 -2 0.4" euler="0 90 0" rgba="0 0 1 1"/>
-        <geom name="ellipsoid1" type="ellipsoid" size="0.4 0.3 0.5" pos="2 2 0.5" rgba="1 1 0 1"/>
-        <geom name="capsule1" type="capsule" size="0.3 0.5" pos="-1 1 0.8" euler="45 0 0" rgba="1 0 1 1"/>
         
-        <!-- LiDAR site - Important! The site tag is used to position the LiDAR -->
-        <!-- Note: mocap="true" is used for user interaction. For robots with physical bodies, this option is not needed -->
+        <!-- LiDAR Site -->
         <body name="lidar_base" pos="0 0 1" quat="1 0 0 0" mocap="true">
             <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-9 1e-9 1e-9"/>
             <site name="lidar_site" size="0.001" type='sphere'/>
@@ -88,312 +114,439 @@ simple_demo_scene = """
 </mujoco>
 """
 
-# 2. Create MuJoCo model and data
-mj_model = mujoco.MjModel.from_xml_string(simple_demo_scene)    
+# Create MuJoCo model and data
+mj_model = mujoco.MjModel.from_xml_string(simple_demo_scene)
 mj_data = mujoco.MjData(mj_model)
 
-# 3. Generate scan pattern (you can choose different LiDAR models)
-# Here we create a simple grid scan pattern, 64 horizontal lines and 16 vertical lines
-rays_theta, rays_phi = generate_grid_scan_pattern(num_ray_cols=64, num_ray_rows=16)
+# Generate scan pattern
+rays_theta, rays_phi = scan_gen.generate_grid_scan_pattern(num_ray_cols=64, num_ray_rows=16)
 
-# 4. Create LiDAR sensor wrapper
-# Note: site_name parameter must match the <site name="lidar_site"> in the MJCF file
-lidar_sim = MjLidarWrapper(mj_model, mj_data, site_name="lidar_site")
+# Get body ID to exclude (avoid LiDAR detecting itself)
+exclude_body_id = mj_model.body("lidar_base").id
 
-# 5. Perform ray casting to get point cloud data
-points = lidar_sim.get_lidar_points(rays_phi, rays_theta, mj_data)
+# Create CPU backend LiDAR sensor
+lidar = MjLidarWrapper(
+    mj_model, 
+    site_name="lidar_site",
+    backend="cpu",  # Use CPU backend
+    cutoff_dist=50.0,  # Maximum detection distance of 50 meters
+    args={'bodyexclude': exclude_body_id}  # CPU backend specific parameter: exclude body
+)
 
-# 6. Set visualization update rate
-lidar_sim_rate = 10
-lidar_sim_cnt = 0
-
-# 7. Create 3D point cloud visualization thread
-def plot_points_thread():
-    global points, lidar_sim_rate
-    plt.ion()  # Enable interactive mode
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.set_box_aspect([1, 1, 0.3])  # Set equal aspect ratio for all axes
-
-    while True:
-        ax.cla()  # Clear current axes
-        ax.scatter(points[:, 0], points[:, 1], points[:, 2], c=points[:, 2], cmap='viridis', s=3)
-        plt.draw()  # Update plot
-        plt.pause(1./lidar_sim_rate)  # Pause to update figure
-
-# Start point cloud visualization thread
-plot_points_thread = threading.Thread(target=plot_points_thread)
-plot_points_thread.start()
-
-# 8. Main loop - Use MuJoCo viewer and update LiDAR scan
+# Use in simulation loop
 with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
-    # Set view mode to site
-    viewer.opt.frame = mujoco.mjtFrame.mjFRAME_SITE.value
-    viewer.opt.label = mujoco.mjtLabel.mjLABEL_SITE.value
-    viewer.cam.distance = 5.  # Set camera distance
-
-    # Simulation main loop
-    while viewer.is_running:
-        # Update physics simulation
+    while viewer.is_running():
         mujoco.mj_step(mj_model, mj_data)
         viewer.sync()
+        
+        # Perform ray tracing (Wrapper automatically handles pose updates)
+        lidar.trace_rays(mj_data, rays_theta, rays_phi)
+        
+        # Get point cloud data (in local coordinate system)
+        points = lidar.get_hit_points()  # shape: (N, 3)
+        distances = lidar.get_distances()  # shape: (N,)
+        
         time.sleep(1./60.)
-
-        # Update LiDAR point cloud at specified rate
-        if mj_data.time * lidar_sim_rate > lidar_sim_cnt:
-            # Update LiDAR scene
-            lidar_sim.update_scene(mj_model, mj_data)
-
-            # Perform ray casting, get new point cloud
-            points = lidar_sim.get_lidar_points(rays_phi, rays_theta, mj_data)
-            
-            # Output point cloud basic information (only in first loop)
-            if lidar_sim_cnt == 0:
-                print("points basic info:")
-                print("  .shape:", points.shape)
-                print("  .dtype:", points.dtype)
-                print("  x.min():", points[:, 0].min(), "x.max():", points[:, 0].max())
-                print("  y.min():", points[:, 1].min(), "y.max():", points[:, 1].max())
-                print("  z.min():", points[:, 2].min(), "z.max():", points[:, 2].max())
-
-            lidar_sim_cnt += 1
-
-# Wait for visualization thread to finish
-plot_points_thread.join()
 ```
 
-Run the program to see the effects:
+#### Example 2: GPU Backend + Wrapper (Loading from MJCF File)
 
-```bash
-python mujoco_lidar/examples/example_string.py
-
-# In mujoco.viewer, double-click to select the red box where lidar_site is located. Hold Ctrl and right-click drag to move the red box,
-# Hold Ctrl and left-click drag to rotate the red box, while observing the position changes of the lidar points in the `Figure 1` window of matplotlib
-# This shows that the points are relative to the local lidar_site coordinate system, not the global coordinate system
-```
-
-#### Simple Example: Loading Scene and LiDAR via MJCF File
-
-This example (`mujoco_lidar/examples/example_mjcf.py`) demonstrates how to load a model from an MJCF file. First, you need to define the LiDAR-related `site` in your MJCF file (e.g., `models/demo.xml`):
-```xml
-    <!-- LiDAR -->
-    <body name="your_robot_name" pos="0 0 1" quat="1 0 0 0" mocap="true">
-        <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-9 1e-9 1e-9"/>
-        <site name="lidar_site" size="0.001" type='sphere'/>
-        <geom type="box" size="0.1 0.1 0.1" density="0" contype="0" conaffinity="0" rgba="0.9 0.3 0.3 0.2"/>
-    </body>
-```
-
-Then in the Python script, the main difference is how the model is loaded:
 ```python
+import mujoco
+from mujoco_lidar import MjLidarWrapper, scan_gen
+
 # Load MuJoCo model from file
-mj_model = mujoco.MjModel.from_xml_path("../../models/demo.xml")    
+mj_model = mujoco.MjModel.from_xml_path("path/to/your/model.xml")
 mj_data = mujoco.MjData(mj_model)
+
+# Generate scan pattern (using Velodyne HDL-64)
+rays_theta, rays_phi = scan_gen.generate_HDL64()
+
+# Create GPU backend LiDAR sensor
+lidar = MjLidarWrapper(
+    mj_model,
+    site_name="lidar_site",
+    backend="gpu",  # Use GPU backend
+    cutoff_dist=100.0,
+    args={
+        'max_candidates': 64,  # GPU backend specific parameter: BVH candidate nodes
+        'ti_init_args': {'device_memory_GB': 4.0}  # Taichi initialization parameters
+    }
+)
+
+# Simulation loop
+with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
+    while viewer.is_running():
+        mujoco.mj_step(mj_model, mj_data)
+        
+        # GPU backend usage is the same as CPU
+        lidar.trace_rays(mj_data, rays_theta, rays_phi)
+        points = lidar.get_hit_points()
 ```
-The remaining steps (like generating scan patterns, creating the LiDAR instance, visualization, etc.) are similar to those in the preceding string-based example.
 
-To run the example:
-```bash
-python mujoco_lidar/examples/example_mjcf.py
+#### Wrapper Parameter Description
+
+```python
+MjLidarWrapper(
+    mj_model,           # MuJoCo model
+    site_name,          # LiDAR site name
+    backend="cpu",      # "cpu" or "gpu"
+    cutoff_dist=100.0,  # Maximum detection distance (meters)
+    args={}             # Backend-specific parameters
+)
+
+# CPU backend parameters (args)
+{
+    'geomgroup': None,      # Geometry group filter (0-5, None means all)
+    'bodyexclude': -1       # Body ID to exclude (-1 means no exclusion)
+}
+
+# GPU backend parameters (args)
+{
+    'max_candidates': 32,   # Maximum BVH candidate nodes (16-128)
+    'ti_init_args': {}      # Taichi initialization parameters
+}
 ```
 
-如果您能手动完成这个添加，`README.md` 文件就能包含这部分新增的内容了。
+### Approach 2: Using Core Directly (Advanced Users)
 
+The Core approach provides direct access to low-level APIs, suitable for advanced users who need fine-grained control.
 
-### Using LiDAR in Your Own MuJoCo Environment
+#### Example 3: CPU Core Approach
 
-If you want to use the LiDAR in your own MuJoCo environment, follow these steps:
+```python
+import numpy as np
+import mujoco
+from mujoco_lidar.core_cpu.mjlidar_cpu import MjLidarCPU
+from mujoco_lidar import scan_gen
 
-1. **Add a LiDAR site to your MJCF file**:
-   ```xml
-   <!-- Add this code at an appropriate location in your MJCF file -->
-   <body name="your_robot_name" pos="0 0 1" quat="1 0 0 0">
-     <site name="lidar_site" size="0.001" type='sphere'/>
-   </body>
-   ```
+# Create model
+mj_model = mujoco.MjModel.from_xml_string(xml_string)
+mj_data = mujoco.MjData(mj_model)
 
-2. **Choose an appropriate LiDAR scan pattern**:
-   ```python
-   from mujoco_lidar.scan_gen import (
-       generate_HDL64,          # Velodyne HDL-64E pattern
-       generate_vlp32,          # Velodyne VLP-32C pattern
-       generate_os128,          # Ouster OS-128 pattern
-       LivoxGenerator,          # Livox series LiDARs
-       generate_grid_scan_pattern  # Custom grid scan pattern
-   )
-   
-   # Choose one of the following LiDAR scan patterns:
-   
-   # 1. Use Velodyne HDL-64E (64-line rotating LiDAR)
-   rays_theta, rays_phi = generate_HDL64()
-   
-   # 2. Use Velodyne VLP-32C (32-line LiDAR)
-   rays_theta, rays_phi = generate_vlp32()
-   
-   # 3. Use Ouster OS-128 (128-line LiDAR)
-   rays_theta, rays_phi = generate_os128()
-   
-   # 4. Use Livox series non-repetitive scan pattern
-   # Note: Other scanning methods use fixed ray angles that only need to be generated once, 
-   # but Livox series uses non-repetitive scanning, so you need to call `livox_generator.sample_ray_angles()`
-   # before each `lidar_sim.get_lidar_points` call
-   livox_generator = LivoxGenerator("mid360")  # Options: "avia", "mid40", "mid70", "mid360", "tele"
-   rays_theta, rays_phi = livox_generator.sample_ray_angles()
-   
-   # 5. Use custom grid scan pattern (horizontal x vertical resolution)
-   rays_theta, rays_phi = generate_grid_scan_pattern(
-       num_ray_cols=180,  # Horizontal resolution
-       num_ray_rows=32,   # Vertical resolution
-       theta_range=(-np.pi, np.pi),    # Horizontal scan range (radians)
-       phi_range=(-np.pi/6, np.pi/6)   # Vertical scan range (radians)
-   )
-   ```
+# Generate scan pattern
+rays_theta, rays_phi = scan_gen.generate_grid_scan_pattern(64, 16)
 
-3. **Create LiDAR wrapper and get point cloud**:
-   ```python
-   # Create mujoco model and data
-   mj_model = mujoco.MjModel.from_xml_path('/path/to/mjcf.xml')
-   mj_data = mujoco.MjData(mj_model)
-   
-   # Initialize LiDAR wrapper
-   # The site_name parameter must match the site name in your MJCF file
-   lidar_sim = MjLidarWrapper(
-       mj_model, 
-       mj_data, 
-       site_name="lidar_site",  # Match with <site name="..."> in MJCF
-       args={
-           "enable_profiling": False,  # Enable performance profiling (optional)
-           "verbose": False           # Show detailed information (optional)
-       }
-   )
-   
-   # In simulation loop, get LiDAR point cloud
-    with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
-       while True:
-           # Update physics simulation
-           mujoco.mj_step(mj_model, mj_data)
-           
-           # Usually mj_step frequency is much higher than lidar simulation frequency, 
-           # it's better to reduce the LiDAR simulation frequency here
-           # Update LiDAR scene
-           lidar_sim.update_scene(mj_model, mj_data)
-           
-           # Perform ray casting to get point cloud
-           points = lidar_sim.get_lidar_points(rays_phi, rays_theta, mj_data)
-           
-           # Process point cloud data...
-   ```
+# Create CPU core instance
+lidar_cpu = MjLidarCPU(
+    mj_model,
+    cutoff_dist=50.0,
+    geomgroup=None,      # Detect all geometry groups
+    bodyexclude=-1       # Don't exclude any body
+)
+
+# Simulation loop
+with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
+    while viewer.is_running():
+        mujoco.mj_step(mj_model, mj_data)
+        
+        # Manually construct 4x4 pose matrix
+        pose_4x4 = np.eye(4, dtype=np.float32)
+        pose_4x4[:3, 3] = mj_data.site("lidar_site").xpos
+        pose_4x4[:3, :3] = mj_data.site("lidar_site").xmat.reshape(3, 3)
+        
+        # Update data and perform ray tracing
+        lidar_cpu.update(mj_data)
+        lidar_cpu.trace_rays(pose_4x4, rays_theta, rays_phi)
+        
+        # Get results
+        points = lidar_cpu.get_hit_points()
+        distances = lidar_cpu.get_distances()
+```
+
+#### Example 4: GPU Core Approach (Taichi)
+
+```python
+import numpy as np
+import mujoco
+import taichi as ti
+from mujoco_lidar.core_ti.mjlidar_ti import MjLidarTi
+from mujoco_lidar import scan_gen_livox_ti
+
+# Initialize Taichi (must be done before creating MjLidarTi)
+ti.init(arch=ti.gpu, device_memory_GB=4.0)
+
+# Create model
+mj_model = mujoco.MjModel.from_xml_string(xml_string)
+mj_data = mujoco.MjData(mj_model)
+
+# Use Livox scan pattern (GPU optimized version)
+livox_gen = scan_gen_livox_ti.LivoxGeneratorTi("mid360")
+
+# Create GPU core instance
+lidar_gpu = MjLidarTi(
+    mj_model,
+    cutoff_dist=100.0,
+    max_candidates=64  # BVH candidate nodes
+)
+
+# Get ray angles in Taichi format
+rays_theta_ti, rays_phi_ti = livox_gen.sample_ray_angles_ti()
+
+# Simulation loop
+with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
+    while viewer.is_running():
+        mujoco.mj_step(mj_model, mj_data)
+        
+        # Manually construct pose matrix
+        pose_4x4 = np.eye(4, dtype=np.float32)
+        pose_4x4[:3, 3] = mj_data.site("lidar_site").xpos
+        pose_4x4[:3, :3] = mj_data.site("lidar_site").xmat.reshape(3, 3)
+        
+        # Update BVH and perform ray tracing
+        lidar_gpu.update(mj_data)
+        lidar_gpu.trace_rays(pose_4x4, rays_theta_ti, rays_phi_ti)
+        
+        # For Livox, resample angles each time
+        rays_theta_ti, rays_phi_ti = livox_gen.sample_ray_angles_ti()
+        
+        # Get results (copy from GPU to CPU)
+        points = lidar_gpu.get_hit_points()  # Returns numpy array
+        distances = lidar_gpu.get_distances()
+```
 
 ## 🤖 ROS Integration
 
+MuJoCo-LiDAR provides complete ROS1 and ROS2 integration examples, supporting point cloud publishing and scene visualization.
+
 ### ROS1 Example
 
+ROS1 related dependencies need to be installed in advance
+
 ```bash
-# First terminal
+# First terminal: Start ROS core
 roscore
 
-# Second terminal
-python mujoco_lidar/examples/lidar_vis_ros1.py
+# Second terminal: Run LiDAR simulation (using GPU backend)
+python examples/lidar_vis_ros1_wrapper.py --lidar mid360 --rate 12
 
-# Third terminal - Use RViz to visualize scene and point cloud
-rosrun rviz rviz -d mujoco_lidar/examples/config/rviz_config.rviz
+# Third terminal: Visualize with RViz
+rosrun rviz rviz -d examples/config/rviz_config.rviz
 ```
 
-This publishes LiDAR scans as PointCloud2 messages on the `/lidar_points` topic.
+### ROS2 Examples
 
-#### ROS1 Example Command Line Arguments
-
-`lidar_vis_ros1.py` supports the following command line arguments:
+**Approach 1: Using Wrapper (Recommended)**
 
 ```bash
-python mujoco_lidar/examples/lidar_vis_ros1.py [options]
+# First terminal: Run LiDAR simulation
+python examples/lidar_vis_ros2_wrapper.py --lidar mid360 --rate 12
+
+# Second terminal: Visualize with RViz2
+ros2 run rviz2 rviz2 -d examples/config/rviz2_config.rviz
+```
+
+**Approach 2: Using Core (Advanced)**
+
+```bash
+# Using low-level GPU Core API
+python examples/lidar_vis_ros2.py --lidar mid360 --rate 12
+```
+
+### ROS Example Command Line Arguments
+
+Both ROS examples support the following command line arguments:
+
+```bash
+python examples/lidar_vis_ros2_wrapper.py [options]
 
 Options:
-  --lidar MODEL      Specify LiDAR model, available options:
+  --lidar MODEL      Specify LiDAR model, available values:
                      - Livox series: avia, mid40, mid70, mid360, tele
                      - Velodyne series: HDL64, vlp32
                      - Ouster series: os128
+                     - Custom: custom
                      Default: mid360
-  --profiling        Enable performance profiling, showing timing statistics for ray tracing
-  --verbose          Show detailed output including position, orientation, and timing information
-  --rate HZ          Set point cloud publishing frequency (Hz), default: 12
+  --verbose          Show detailed output, including position, orientation, and performance statistics
+  --rate HZ          Set point cloud publishing rate (Hz), default: 12
 ```
 
-Example: Using HDL64 LiDAR with profiling enabled and publishing rate of 10Hz
+**Usage Examples:**
+
 ```bash
-python mujoco_lidar/examples/lidar_vis_ros1.py --lidar HDL64 --profiling --rate 10
+# Use HDL64 LiDAR, enable verbose output, set publishing rate to 10Hz
+python examples/lidar_vis_ros2_wrapper.py --lidar HDL64 --verbose --rate 10
+
+# Use Velodyne VLP-32, default rate
+python examples/lidar_vis_ros2_wrapper.py --lidar vlp32
+
+# Use custom scan pattern
+python examples/lidar_vis_ros2_wrapper.py --lidar custom
 ```
 
-#### Keyboard Interaction
+### Keyboard Controls
 
-In the ROS examples, you can use the keyboard to control the LiDAR position and orientation:
-- `W/A/S/D`: Control horizontal movement (forward/left/backward/right)
-- `Q/E`: Control height up/down
-- `↑/↓`: Control pitch angle
-- `←/→`: Control yaw angle
+In ROS examples, you can control the LiDAR's position and orientation using the keyboard:
+
+**Movement Controls:**
+- `W`: Move forward
+- `S`: Move backward
+- `A`: Move left
+- `D`: Move right
+- `Q`: Move up
+- `E`: Move down
+
+**Orientation Controls:**
+- `↑`: Pitch up
+- `↓`: Pitch down
+- `←`: Yaw left
+- `→`: Yaw right
+
+**Other:**
 - `ESC`: Exit program
 
-### ROS2 Example
+### ROS Topics
 
-```bash
-# First terminal
-python mujoco_lidar/examples/lidar_vis_ros2.py
+Example programs publish the following ROS topics:
 
-# Second terminal - Use RViz2 to visualize scene and point cloud
-ros2 run rviz2 rviz2 -d mujoco_lidar/examples/config/rviz_config.rviz
+| Topic Name | Message Type | Description |
+|-----------|-------------|-------------|
+| `/lidar_points` | `sensor_msgs/PointCloud2` | LiDAR point cloud data |
+| `/mujoco_scene` | `visualization_msgs/MarkerArray` | MuJoCo scene geometry visualization |
+| `/tf` | `tf2_msgs/TFMessage` | LiDAR coordinate transforms |
+
+### Wrapper vs Core in ROS
+
+**`lidar_vis_ros2_wrapper.py` (Wrapper Approach)**:
+- Uses `MjLidarWrapper` class
+- Automatically handles data format conversion (numpy ↔ Taichi)
+- More concise code, easier to maintain
+- Suitable for most application scenarios
+
+```python
+from mujoco_lidar import MjLidarWrapper
+
+# Create Wrapper instance
+lidar = MjLidarWrapper(mj_model, site_name="lidar_site", backend="gpu")
+
+# Simple call
+lidar.trace_rays(mj_data, rays_theta, rays_phi)
+points = lidar.get_hit_points()  # Automatically returns numpy array
 ```
 
-This publishes LiDAR scans as PointCloud2 messages on the `/lidar_points` topic.
+**`lidar_vis_ros2.py` (Core Approach)**:
+- Directly uses `MjLidarTi` class
+- Need to manually manage Taichi data format
+- Need to manually construct 4x4 pose matrix
+- More room for performance optimization, suitable for advanced users
 
-#### ROS2 Example Command Line Arguments
+```python
+from mujoco_lidar.core_ti.mjlidar_ti import MjLidarTi
+import taichi as ti
 
-`lidar_vis_ros2.py` supports the same command line arguments as the ROS1 example:
+# Must initialize Taichi first
+ti.init(arch=ti.gpu)
 
-```bash
-python mujoco_lidar/examples/lidar_vis_ros2.py [options]
+# Create Core instance
+lidar = MjLidarTi(mj_model)
 
-Options:
-  --lidar MODEL      Specify LiDAR model, same options as ROS1 example
-  --profiling        Enable performance profiling
-  --verbose          Show detailed output
-  --rate HZ          Set point cloud publishing frequency (Hz), default: 12
+# Need Taichi ndarray format
+rays_theta_ti = ti.ndarray(dtype=ti.f32, shape=n_rays)
+rays_phi_ti = ti.ndarray(dtype=ti.f32, shape=n_rays)
+rays_theta_ti.from_numpy(rays_theta)
+rays_phi_ti.from_numpy(rays_phi)
+
+# Manually construct pose matrix
+pose_4x4 = np.eye(4, dtype=np.float32)
+pose_4x4[:3, 3] = mj_data.site("lidar_site").xpos
+pose_4x4[:3, :3] = mj_data.site("lidar_site").xmat.reshape(3, 3)
+
+# Call
+lidar.update(mj_data)
+lidar.trace_rays(pose_4x4, rays_theta_ti, rays_phi_ti)
+points = lidar.get_hit_points()  # Copy from GPU to CPU
 ```
 
-Keyboard controls are the same as in ROS1.
+## ⚡ Performance Optimization and Best Practices
 
-## 📝 TODO
+### 1. Reduce Ray Tracing Frequency
 
-- [ ] **Mesh Auto-Simplification**: Automatic mesh simplification for better performance
-- [ ] **Mesh AABB Acceleration**: Axis-Aligned Bounding Box acceleration for mesh collision detection
-- [ ] **BVH Tree Acceleration**: Bounding Volume Hierarchy tree for faster ray-mesh intersection tests
+LiDAR doesn't need to run at the same frequency as physics simulation:
 
-## 📈 Performance Testing
+```python
+lidar_rate = 10  # LiDAR at 10Hz
+physics_rate = 60  # Physics simulation at 60Hz
+step_cnt = 0
 
-Run the performance test to benchmark the LiDAR simulation:
-
-```bash
-python mujoco_lidar/examples/test_speed.py --profiling --verbose
+with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
+    while viewer.is_running():
+        # High-frequency physics simulation
+        mujoco.mj_step(mj_model, mj_data)
+        step_cnt += 1
+        
+        # Low-frequency LiDAR scanning
+        if step_cnt % (physics_rate // lidar_rate) == 0:
+            lidar.trace_rays(mj_data, rays_theta, rays_phi)
+            points = lidar.get_hit_points()
 ```
 
-This will test 115,200 rays (equivalent to 1800×64 resolution) and show detailed timing information.
+### 2. Reuse Ray Angle Arrays
 
-Performance test script supports the following parameters:
-- `--profiling`: Enable performance profiling, showing detailed timing statistics
-- `--verbose`: Show more debug information
-- `--skip-test`: Skip performance test, only show demonstration
-- `--zh`: Use Chinese for charts
-- `--save-fig`: Save charts
+For fixed scan patterns (non-Livox), generate angle arrays only once:
 
-We tested the performance on three different computers, including a MacBook (yes :) our program is cross-platform like MuJoCo).
+```python
+# ✅ Correct: Generate once outside loop
+rays_theta, rays_phi = scan_gen.generate_HDL64()
 
-In scenes with fewer geoms (<200), simulating with 115,200 rays can achieve 500Hz+ simulation efficiency, which is really fast! Most of the time is spent in the preparation process, with a large proportion (>60%) spent copying data from CPU to GPU.
+while True:
+    lidar.trace_rays(mj_data, rays_theta, rays_phi)
 
-| Desktop PC<br />Intel Xeon w5-3435X<br />Nvidia 6000Ada    | MacBook M3Max 48GB<br /> | Lenovo Legion R9000P 2022<br />R7-5800H<br />Nvidia RTX 3060 |
-| :----------------------------------------------------------: | :----------------: | :---------------------------------------: |
-| ![pro_1](./assets/img_pro_1.png) | ![pro_2_zh](./assets/img_pro_2.jpg) | ![pro_1_zh](./assets/img_pro_3.jpg) |
+# ❌ Wrong: Regenerate every loop (wasteful)
+while True:
+    rays_theta, rays_phi = scan_gen.generate_HDL64()  # Unnecessary!
+    lidar.trace_rays(mj_data, rays_theta, rays_phi)
+```
+
+### 3. Use Taichi Arrays with GPU Backend
+
+When using GPU Core approach, avoid frequent numpy↔Taichi conversions:
+
+```python
+import taichi as ti
+
+# ✅ Correct: Use Taichi ndarray
+rays_theta_ti = ti.ndarray(dtype=ti.f32, shape=n_rays)
+rays_phi_ti = ti.ndarray(dtype=ti.f32, shape=n_rays)
+rays_theta_ti.from_numpy(rays_theta)  # Convert only once
+rays_phi_ti.from_numpy(rays_phi)
+
+while True:
+    lidar.trace_rays(pose_4x4, rays_theta_ti, rays_phi_ti)  # Use directly
+
+# ❌ Wrong: Convert every time (high overhead)
+while True:
+    theta_ti = ti.ndarray(dtype=ti.f32, shape=n_rays)
+    theta_ti.from_numpy(rays_theta)  # Frequent conversion!
+    # ...
+```
+
+### 4. Livox Scan Pattern Optimization
+
+When using GPU backend, for Livox non-repetitive scanning, use GPU optimized version:
+
+```python
+from mujoco_lidar import scan_gen_livox_ti
+import taichi as ti
+
+ti.init(arch=ti.gpu)
+
+# ✅ GPU optimized version: Returns Taichi arrays directly, no conversion needed
+livox_gen = scan_gen_livox_ti.LivoxGeneratorTi("mid360")
+rays_theta_ti, rays_phi_ti = livox_gen.sample_ray_angles_ti()
+
+# ❌ CPU version: Need numpy→Taichi conversion every time
+livox_gen = scan_gen.LivoxGenerator("mid360")
+rays_theta, rays_phi = livox_gen.sample_ray_angles()
+# Still need to convert to Taichi format...
+```
+
+### 5. Properly Set Scene Complexity
+
+- Remove geometries outside the field of view
+- Use geomgroup to organize the scene
+- Simplify geometry shapes of unimportant objects
+- For mesh models, consider reducing face count
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
