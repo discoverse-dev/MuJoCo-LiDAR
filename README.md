@@ -575,12 +575,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you find MuJoCo-LiDAR useful in your research, please consider citing our work:
 
 ```bibtex
-@article{wu2025fggs,
-  title={FGGS-LiDAR: Ultra-Fast, GPU-Accelerated Simulation from General 3DGS Models to LiDAR},
-  author={Wu, Junzhe and Jia, Yufei and Yan, Yiyi and Chen, Zhixing and Tan, Tiao and Wang, Zifan and Wang, Guangyu},
-  journal={arXiv preprint arXiv:2509.17390},
-  year={2025},
-  url={https://arxiv.org/abs/2509.17390}
+@article{jia2025discoverse,
+    title={DISCOVERSE: Efficient Robot Simulation in Complex High-Fidelity Environments},
+    author={Yufei Jia and Guangyu Wang and Yuhang Dong and Junzhe Wu and Yupei Zeng and Haonan Lin and Zifan Wang and Haizhou Ge and Weibin Gu and Chuxuan Li and Ziming Wang and Yunjie Cheng and Wei Sui and Ruqi Huang and Guyue Zhou},
+    journal={arXiv preprint arXiv:2507.21981},
+    year={2025},
+    url={https://arxiv.org/abs/2507.21981}
 }
 ```
-
