@@ -19,12 +19,9 @@ from sensor_msgs.msg import PointCloud2, PointField
 from mujoco_lidar import scan_gen
 from mujoco_lidar import MjLidarWrapper
 
-_HERE = epath.Path(__file__).parent
-_ONNX_DIR = _HERE / "onnx"
-_MJCF_PATH = _HERE.parent / "models" / "scene_g1.xml"
+from unitree_g1 import OnnxController, _ONNX_DIR, _MJCF_PATH, _JOINT_NUM
 
-_JOINT_NUM = 29
-class OnnxControllerRos2(Node):
+class OnnxControllerRos2(OnnxController, Node):
     """ONNX controller for the G-1 robot."""
 
     def __init__(
@@ -37,46 +34,18 @@ class OnnxControllerRos2(Node):
         action_scale: float = 0.5,
         lidar_type: str = "mid360",
     ):
+        super().__init__(
+            mj_model,
+            policy_path,
+            default_angles,
+            ctrl_dt,
+            n_substeps,
+            action_scale,
+            lidar_type,
+        )
         Node.__init__(self, 'g1_node')
 
-        self._output_names = ["continuous_actions"]
-        self._policy = rt.InferenceSession(
-            policy_path, providers=["CPUExecutionProvider"]
-        )
-
-        self._action_scale = action_scale
-        self._default_angles = default_angles
-        self._last_action = np.zeros_like(default_angles, dtype=np.float32)
-
-        self._counter = 0
-        self._n_substeps = n_substeps
-
-        self._phase = np.array([0.0, np.pi])
-        self._gait_freq = 1.5
-        self._phase_dt = 2 * np.pi * self._gait_freq * ctrl_dt
-
-        self._output_names = ["continuous_actions"]
-        self._policy = rt.InferenceSession(
-            policy_path, providers=["CPUExecutionProvider"]
-        )
-
         self.init_topic_publisher()
-
-        # lidar
-        self.dynamic_lidar = False
-        if lidar_type == "airy":
-            self.rays_theta, self.rays_phi = scan_gen.generate_airy96()
-        elif lidar_type == "mid360":
-            self.livox_generator = scan_gen.LivoxGenerator(lidar_type)
-            self.rays_theta, self.rays_phi = self.livox_generator.sample_ray_angles()
-            self.dynamic_lidar = True
-
-        self.rays_theta = np.ascontiguousarray(self.rays_theta).astype(np.float32)[::3]
-        self.rays_phi = np.ascontiguousarray(self.rays_phi).astype(np.float32)[::3]
-
-        geomgroup = np.ones((mujoco.mjNGROUP,), dtype=np.ubyte)
-        geomgroup[3:] = 0  # 排除group 1中的几何体
-        self.lidar = MjLidarWrapper(mj_model, site_name="lidar", backend="gpu", args={'bodyexclude': -1, "geomgroup":geomgroup})
 
     def init_topic_publisher(self):
         self.last_pub_time_tf = -1.
@@ -181,38 +150,9 @@ class OnnxControllerRos2(Node):
 
         self.lidar_puber.publish(self.pc_msg)
 
-    def get_obs(self, model, data) -> np.ndarray:
-        linvel = data.sensor("local_linvel_pelvis").data
-        gyro = data.sensor("gyro_pelvis").data
-        imu_xmat = data.site_xmat[model.site("imu_in_pelvis").id].reshape(3, 3)
-        gravity = imu_xmat.T @ np.array([0, 0, -1])
-        joint_angles = data.qpos[7:7+_JOINT_NUM] - self._default_angles
-        joint_velocities = data.qvel[6:6+_JOINT_NUM]
-        phase = np.concatenate([np.cos(self._phase), np.sin(self._phase)])
-        command = np.zeros(3, dtype=np.float32)
-        obs = np.hstack([
-            linvel,
-            gyro,
-            gravity,
-            command,
-            joint_angles,
-            joint_velocities,
-            self._last_action,
-            phase,
-        ])
-        return obs.astype(np.float32)
-
     def get_control(self, model: mujoco.MjModel, data: mujoco.MjData) -> None:
         self.update_ros2(data)
-        self._counter += 1
-        if self._counter % self._n_substeps == 0:
-            obs = self.get_obs(model, data)
-            onnx_input = {"obs": obs.reshape(1, -1)}
-            onnx_pred = self._policy.run(self._output_names, onnx_input)[0][0]
-            self._last_action = onnx_pred.copy()
-            data.ctrl[:] = onnx_pred * self._action_scale + self._default_angles
-            phase_tp1 = self._phase + self._phase_dt
-            self._phase = np.fmod(phase_tp1 + np.pi, 2 * np.pi) - np.pi
+        super().get_control(model, data)
 
 def load_callback(model=None, data=None):
     global args

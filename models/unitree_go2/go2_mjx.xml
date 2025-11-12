@@ -75,6 +75,10 @@
       <inertial pos="0.021112 0 -0.005366" quat="-0.000543471 0.713435 -0.00173769 0.700719" mass="6.921"
         diaginertia="0.107027 0.0980771 0.0244531"/>
       <freejoint/>
+      <!-- <body name="base_0">
+        <geom mesh="base_0" material="black" class="visual"/>
+      </body> -->
+      <geom mesh="base_0" material="black" class="visual"/>
       <geom mesh="base_1" material="black" class="visual"/>
       <geom mesh="base_2" material="black" class="visual"/>
       <geom mesh="base_3" material="white" class="visual"/>
@@ -83,10 +87,7 @@
       <geom size="0.05 0.045" pos="0.285 0 0.01" class="collision"/>
       <geom size="0.047" pos="0.293 0 -0.06" class="collision"/>
       <site name="imu" pos="-0.02557 0 0.04232"/>
-      <site name="lidar" pos="0.295 0 -0.075" quat="0.1 0 1 0" rgba="1 0 0 1" size="0.005" group="5"/>
-      <body name="base_0">
-        <geom mesh="base_0" material="black" class="visual"/>
-      </body>
+      <site name="lidar" pos="0.295 0 -0.075" quat="0.05 0 1 0" rgba="1 0 0 1" size="0.005" group="5"/>
       <body name="FL_hip" pos="0.1934 0.0465 0">
         <inertial pos="-0.0054 0.00194 -0.000105" quat="0.497014 0.499245 0.505462 0.498237" mass="0.678"
           diaginertia="0.00088403 0.000596003 0.000479967"/>

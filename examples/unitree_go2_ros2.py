@@ -1,14 +1,12 @@
 import os
 import subprocess
 import signal
-from etils import epath
 import mujoco
 import mujoco.viewer as viewer
 import argparse
 import traceback
 import numpy as np
 from scipy.spatial.transform import Rotation
-import onnxruntime as rt
 
 import rclpy
 import tf2_ros
@@ -16,15 +14,9 @@ from rclpy.node import Node
 from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import PointCloud2, PointField
 
-from mujoco_lidar import scan_gen
-from mujoco_lidar import MjLidarWrapper
+from unitree_go2 import OnnxController, _ONNX_DIR, _MJCF_PATH, _JOINT_NUM
 
-_HERE = epath.Path(__file__).parent
-_ONNX_DIR = _HERE / "onnx"
-_MJCF_PATH = _HERE.parent / "models" / "scene_go2.xml"
-
-_JOINT_NUM = 12
-class OnnxControllerRos2(Node):
+class OnnxControllerRos2(OnnxController, Node):
     """ONNX controller for the Go-2 robot."""
 
     def __init__(
@@ -37,37 +29,18 @@ class OnnxControllerRos2(Node):
         lidar_type: str = "mid360",
         stand: bool = False,
     ):
-        self._output_names = ["continuous_actions"]
-        self._policy = rt.InferenceSession(
-            policy_path, providers=["CPUExecutionProvider"]
+        super().__init__(
+            mj_model,
+            policy_path,
+            default_angles,
+            n_substeps,
+            action_scale,
+            lidar_type,
+            stand,
         )
         Node.__init__(self, 'go2_node')
 
-        self._action_scale = action_scale
-        self._default_angles = default_angles
-        self._last_action = np.zeros_like(default_angles, dtype=np.float32)
-
-        self._counter = 0
-        self._n_substeps = n_substeps
-
         self.init_topic_publisher()
-
-        # lidar
-        self.dynamic_lidar = False
-        if lidar_type == "airy":
-            self.rays_theta, self.rays_phi = scan_gen.generate_airy96()
-        elif lidar_type == "mid360":
-            self.livox_generator = scan_gen.LivoxGenerator(lidar_type)
-            self.rays_theta, self.rays_phi = self.livox_generator.sample_ray_angles()
-            self.dynamic_lidar = True
-        self.stand = stand
-
-        self.rays_theta = np.ascontiguousarray(self.rays_theta).astype(np.float32)[::3]
-        self.rays_phi = np.ascontiguousarray(self.rays_phi).astype(np.float32)[::3]
-
-        geomgroup = np.ones((mujoco.mjNGROUP,), dtype=np.ubyte)
-        geomgroup[3:] = 0  # 排除group 1中的几何体
-        self.lidar = MjLidarWrapper(mj_model, site_name="lidar", backend="gpu", args={'bodyexclude': mj_model.body("base_0").id, "geomgroup":geomgroup})
 
     def init_topic_publisher(self):
         self.last_pub_time_tf = -1.
@@ -172,47 +145,9 @@ class OnnxControllerRos2(Node):
 
         self.lidar_puber.publish(self.pc_msg)
 
-    def get_obs(self, mj_model, mj_data) -> np.ndarray:
-        linvel = mj_data.sensor("local_linvel").data
-        gyro = mj_data.sensor("gyro").data
-        imu_xmat = mj_data.site_xmat[mj_model.site("imu").id].reshape(3, 3)
-        gravity = imu_xmat.T @ np.array([0, 0, -1])
-        joint_angles = mj_data.qpos[7:7+_JOINT_NUM] - self._default_angles
-        joint_velocities = mj_data.qvel[6:6+_JOINT_NUM]
-
-        ####################################################
-        # set command 
-        command = np.zeros(3, dtype=np.float32)
-        if not self.stand:
-            if mj_data.time % 20.0 < 5.:
-                command[0] = 1.0  # 前进
-            elif 5. < mj_data.time % 20.0 < 10.:
-                command[1] = -1.0
-            elif 10. < mj_data.time % 20.0 < 15.:
-                command[0] = -1.0
-            else:
-                command[1] = 1.0
-        ####################################################
-        obs = np.hstack([
-            linvel,
-            gyro,
-            gravity,
-            joint_angles,
-            joint_velocities,
-            self._last_action,
-            command
-        ])
-        return obs.astype(np.float32)
-
     def get_control(self, model: mujoco.MjModel, data: mujoco.MjData) -> None:
         self.update_ros2(data)
-        self._counter += 1
-        if self._counter % self._n_substeps == 0:
-            obs = self.get_obs(model, data)
-            onnx_input = {"obs": obs.reshape(1, -1)}
-            onnx_pred = self._policy.run(self._output_names, onnx_input)[0][0]
-            self._last_action = onnx_pred.copy()
-            data.ctrl[:] = onnx_pred * self._action_scale + self._default_angles
+        super().get_control(model, data)
 
 def load_callback(model=None, data=None):
     global args
