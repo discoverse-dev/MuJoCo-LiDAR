@@ -7,9 +7,9 @@
   <img src="./assets/g1.png" width="49%" />
 </p>
 <p align="center">
-  <img src="./assets/g1_native.png" width="33%" />
-  <img src="./assets/go2_native.png" width="33%" />
-  <img src="./assets/lidar_rviz.png" width="33%" />
+  <img src="./assets/g1_native.png" width="32%" />
+  <img src="./assets/go2_native.png" width="32%" />
+  <img src="./assets/lidar_rviz.png" width="32%" />
 </p>
 
 
