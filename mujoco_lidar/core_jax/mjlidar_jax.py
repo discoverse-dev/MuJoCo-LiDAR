@@ -79,7 +79,7 @@ class MjLidarJax:
         # 2. Boxes
         if self.box_ids.shape[0] > 0:
             pos = geom_xpos[self.box_ids]
-            rot = geom_xmat[self.box_ids]
+            rot = geom_xmat[self.box_ids].reshape(-1, 3, 3)
             size = self.geom_sizes[self.box_ids]
             
             def dist_all_rays_all_boxes(ro, rd, pos, rot, size):
@@ -94,7 +94,7 @@ class MjLidarJax:
         # 3. Capsules
         if self.capsule_ids.shape[0] > 0:
             pos = geom_xpos[self.capsule_ids]
-            rot = geom_xmat[self.capsule_ids]
+            rot = geom_xmat[self.capsule_ids].reshape(-1, 3, 3)
             size = self.geom_sizes[self.capsule_ids]
             
             def dist_all_rays_all_capsules(ro, rd, pos, rot, size):
@@ -109,7 +109,7 @@ class MjLidarJax:
         # 4. Cylinders
         if self.cylinder_ids.shape[0] > 0:
             pos = geom_xpos[self.cylinder_ids]
-            rot = geom_xmat[self.cylinder_ids]
+            rot = geom_xmat[self.cylinder_ids].reshape(-1, 3, 3)
             size = self.geom_sizes[self.cylinder_ids]
             
             def dist_all_rays_all_cylinders(ro, rd, pos, rot, size):
@@ -124,7 +124,7 @@ class MjLidarJax:
         # 5. Planes
         if self.plane_ids.shape[0] > 0:
             pos = geom_xpos[self.plane_ids]
-            rot = geom_xmat[self.plane_ids]
+            rot = geom_xmat[self.plane_ids].reshape(-1, 3, 3)
             # Plane normal is local Z axis (0,0,1) rotated by rot
             # normal = rot @ [0,0,1] = rot[:, 2]
             normals = rot[:, :, 2]
