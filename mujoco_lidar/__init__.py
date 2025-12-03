@@ -1,4 +1,4 @@
-# Lazy import to avoid loading taichi when not needed
+# Lazy import to avoid loading dependencies when not needed
 # Import the wrapper class directly
 from mujoco_lidar.lidar_wrapper import MjLidarWrapper
 
@@ -8,7 +8,7 @@ __all__ = [
     "LivoxGeneratorTi",
     "LivoxGenerator",  # From scan_gen_livox (requires taichi)
     "generate_grid_scan_pattern",
-    "create_lidar_single_line"
+    "create_lidar_single_line",
     "generate_HDL64",  # From scan_gen (no taichi needed)
     "generate_vlp32", 
     "generate_os128",
@@ -16,8 +16,8 @@ __all__ = [
 ]
 
 def __getattr__(name):
-    """Lazy import for scan generation functions to avoid importing taichi unless needed."""
-    # LivoxGenerator requires taichi - import from scan_gen_livox
+    """Lazy import for scan generation functions."""
+    # LivoxGeneratorTi requires taichi - import from scan_gen_livox_ti
     if name == "LivoxGeneratorTi":
         from mujoco_lidar.scan_gen_livox_ti import LivoxGeneratorTi
         return LivoxGeneratorTi

@@ -27,10 +27,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# GPU backend with all dependencies (taichi, tibvh, and utilities)
-gpu = [
+# Taichi backend with all dependencies (taichi, tibvh, and utilities)
+taichi = [
     "taichi >= 1.6.0",
     "tibvh @ git+https://github.com/TATP-233/tibvh.git",
+]
+# JAX backend
+jax = [
+    "jax",
+    "jaxlib",
 ]
 
 [project.urls]

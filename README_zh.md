@@ -1,6 +1,6 @@
 # MuJoCo-LiDAR: 基于MuJoCo的高性能激光雷达仿真
 
-基于MuJoCo的高性能激光雷达仿真工具，支持CPU和GPU两种后端，由Taichi编程语言提供强大的GPU并行计算支持。
+基于MuJoCo的高性能激光雷达仿真工具，支持CPU、Taichi和JAX后端，提供强大的GPU并行计算支持。
 
 <p align="center">
   <img src="./assets/go2.png" width="49%" />
@@ -17,10 +17,11 @@
 
 ## 🌟 特点
 
-- **双后端支持**：
+- **多后端支持**：
   - **CPU后端**：基于MuJoCo原生的`mj_multiRay`函数，无需GPU，简单易用
-  - **GPU后端**：利用Taichi实现GPU高效并行计算，性能更强，支持百万面片的mesh场景
-- **高性能**：GPU后端能在毫秒级生成100万+射线
+  - **Taichi后端**：利用Taichi实现GPU高效并行计算，性能更强，支持百万面片的mesh场景
+  - **JAX后端**：利用JAX实现GPU并行计算，支持MJX集成
+- **高性能**：GPU加速后端能在毫秒级生成100万+射线
 - **动态场景**：支持动态场景实时bvh构建，实现快速LiDAR扫描
 - **多种激光雷达模型**：支持多种扫描模式：
   - Livox非重复扫描模式: mid360 mid70 mid40 tele avia
@@ -35,14 +36,14 @@
 
 ### 系统要求
 
-**基础依赖（CPU和GPU后端都需要）：**
+**基础依赖（所有后端都需要）：**
 - Python >= 3.8
 - MuJoCo >= 3.2.0
 - NumPy >= 1.20.0
 
-**GPU后端额外依赖：**
-- Taichi >= 1.6.0
-- TIBVH (Taichi-based Linear BVH) - 用于高性能空间数据结构和几何处理
+**可选后端依赖：**
+- **Taichi**: `taichi >= 1.6.0`, `tibvh`
+- **JAX**: `jax`, `jaxlib`
 
 ### 快速安装
 
@@ -51,16 +52,19 @@
 git clone https://github.com/TATP-233/MuJoCo-LiDAR.git
 cd MuJoCo-LiDAR
 
-# 1. 仅安装CPU后端（轻量级，无需GPU）
+# 1. 安装基础依赖（CPU后端）
 pip install -e .
 
-# 2. 安装GPU后端依赖（需要GPU支持）
-pip install -e ".[gpu]"
+# 2. 安装Taichi后端依赖
+pip install -e ".[taichi]"
+
+# 3. 安装JAX后端依赖
+pip install -e ".[jax]"
 ```
 
 **注意**：
 - CPU后端不需要安装Taichi和TIBVH，开箱即用
-- GPU后端需要配置好cuda的nvidia显卡或其他Taichi支持的GPU
+- Taichi后端需要配置好cuda的nvidia显卡或其他Taichi支持的GPU
 
 ## 📚 使用示例
 
@@ -80,14 +84,19 @@ MuJoCo-LiDAR 提供两种使用方式和两种后端选择：
    - 适用场景：简单场景、射线数量较少（<10000）、无GPU环境、场景只包含简单几何原语、无复杂mesh
    - 性能：使用MuJoCo原生 `mj_multiRay` 函数
 
-2. **GPU后端**：
-   - 优点：高性能，适合大规模射线追踪
+2. **Taichi后端**：
+   - 优点：高性能，适合大规模射线追踪，支持复杂Mesh场景
    - 适用场景：复杂场景、大量射线（>10000）、需要实时性能、复杂mesh文件
    - 性能：GPU并行计算，毫秒级处理100万+射线
 
+3. **JAX后端**：
+   - 优点：高性能，支持批量仿真
+   - 适用场景：涉及JAX/MJX的研究，简单几何场景（Primitives）
+   - 注意：目前不支持Mesh几何体
+
 ### 方式一：使用Wrapper（推荐，简单易用）
 
-Wrapper方式提供统一的接口，自动处理CPU和GPU后端的差异。这是**推荐的使用方式**。
+Wrapper方式提供统一的接口，自动处理后端差异。这是**推荐的使用方式**。
 
 #### 示例1：CPU后端 + Wrapper（通过字符串定义场景）
 
@@ -160,7 +169,7 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         time.sleep(1./60.)
 ```
 
-#### 示例2：GPU后端 + Wrapper（从MJCF文件加载）
+#### 示例2：Taichi后端 + Wrapper（从MJCF文件加载）
 
 ```python
 import mujoco
@@ -173,14 +182,14 @@ mj_data = mujoco.MjData(mj_model)
 # 生成扫描模式（使用Velodyne HDL-64）
 rays_theta, rays_phi = scan_gen.generate_HDL64()
 
-# 创建GPU后端的激光雷达传感器
+# 创建Taichi后端的激光雷达传感器
 lidar = MjLidarWrapper(
     mj_model,
     site_name="lidar_site",
-    backend="gpu",  # 使用GPU后端
+    backend="taichi",  # 使用Taichi后端
     cutoff_dist=100.0,
     args={
-        'max_candidates': 64,  # GPU后端特定参数：BVH候选节点数
+        'max_candidates': 64,  # Taichi后端特定参数：BVH候选节点数
         'ti_init_args': {'device_memory_GB': 4.0}  # Taichi初始化参数
     }
 )
@@ -190,7 +199,7 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
     while viewer.is_running():
         mujoco.mj_step(mj_model, mj_data)
         
-        # GPU后端的使用方式与CPU相同
+        # Taichi后端的使用方式与CPU相同
         lidar.trace_rays(mj_data, rays_theta, rays_phi)
         points = lidar.get_hit_points()
 ```
@@ -201,7 +210,7 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
 MjLidarWrapper(
     mj_model,           # MuJoCo模型
     site_name,          # 激光雷达site名称
-    backend="cpu",      # "cpu" 或 "gpu"
+    backend="cpu",      # "cpu" 或 "taichi"
     cutoff_dist=100.0,  # 最大检测距离（米）
     args={}             # 后端特定参数
 )
@@ -212,7 +221,7 @@ MjLidarWrapper(
     'bodyexclude': -1       # 排除的body ID（-1表示不排除）
 }
 
-# GPU后端参数 (args)
+# Taichi后端参数 (args)
 {
     'max_candidates': 32,   # BVH最大候选节点数（16-128）
     'ti_init_args': {}      # Taichi初始化参数
@@ -265,7 +274,7 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         distances = lidar_cpu.get_distances()
 ```
 
-#### 示例4：GPU Core方式（Taichi）
+#### 示例4：Taichi Core方式
 
 ```python
 import numpy as np
@@ -281,11 +290,11 @@ ti.init(arch=ti.gpu, device_memory_GB=4.0)
 mj_model = mujoco.MjModel.from_xml_string(xml_string)
 mj_data = mujoco.MjData(mj_model)
 
-# 使用Livox扫描模式（GPU优化版本）
+# 使用Livox扫描模式（Taichi优化版本）
 livox_gen = scan_gen_livox_ti.LivoxGeneratorTi("mid360")
 
-# 创建GPU核心实例
-lidar_gpu = MjLidarTi(
+# 创建Taichi核心实例
+lidar_ti = MjLidarTi(
     mj_model,
     cutoff_dist=100.0,
     max_candidates=64  # BVH候选节点数
@@ -305,15 +314,15 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         pose_4x4[:3, :3] = mj_data.site("lidar_site").xmat.reshape(3, 3)
         
         # 更新BVH并执行射线追踪
-        lidar_gpu.update(mj_data)
-        lidar_gpu.trace_rays(pose_4x4, rays_theta_ti, rays_phi_ti)
+        lidar_ti.update(mj_data)
+        lidar_ti.trace_rays(pose_4x4, rays_theta_ti, rays_phi_ti)
         
         # 对于Livox，每次都需要重新采样角度
         rays_theta_ti, rays_phi_ti = livox_gen.sample_ray_angles_ti()
         
-        # 获取结果（从GPU拷贝到CPU）
-        points = lidar_gpu.get_hit_points()  # 返回numpy数组
-        distances = lidar_gpu.get_distances()
+        # 获取结果（从Taichi拷贝到CPU）
+        points = lidar_ti.get_hit_points()  # 返回numpy数组
+        distances = lidar_ti.get_distances()
 ```
 
 ## 🤖 ROS集成
@@ -328,7 +337,7 @@ MuJoCo-LiDAR提供了完整的ROS1和ROS2集成示例，支持点云发布和场
 # 第一个终端：启动ROS核心
 roscore
 
-# 第二个终端：运行激光雷达仿真（使用GPU后端） 会自动开启rviz可视化
+# 第二个终端：运行激光雷达仿真（使用Taichi后端） 会自动开启rviz可视化
 python examples/lidar_vis_ros1_wrapper.py --lidar mid360 --rate 12
 ```
 
@@ -344,7 +353,7 @@ python examples/lidar_vis_ros2_wrapper.py --lidar mid360 --rate 12
 **方式二：使用Core（高级）**
 
 ```bash
-# 使用底层GPU Core API
+# 使用底层Taichi Core API
 python examples/lidar_vis_ros2.py --lidar mid360 --rate 12
 ```
 
@@ -422,7 +431,7 @@ python examples/lidar_vis_ros2_wrapper.py --lidar custom
 from mujoco_lidar import MjLidarWrapper
 
 # 创建Wrapper实例
-lidar = MjLidarWrapper(mj_model, site_name="lidar_site", backend="gpu")
+lidar = MjLidarWrapper(mj_model, site_name="lidar_site", backend="taichi")
 
 # 简单调用
 lidar.trace_rays(mj_data, rays_theta, rays_phi)
@@ -518,9 +527,9 @@ while True:
     lidar.trace_rays(mj_data, rays_theta, rays_phi)
 ```
 
-### 3. GPU后端使用Taichi数组
+### 3. Taichi后端使用Taichi数组
 
-使用GPU Core方式时，避免频繁的numpy↔Taichi转换：
+使用Taichi Core方式时，避免频繁的numpy↔Taichi转换：
 
 ```python
 import taichi as ti
@@ -543,7 +552,7 @@ while True:
 
 ### 4. Livox扫描模式优化
 
-使用GPU后端时，对于Livox非重复扫描，使用GPU优化版本：
+使用Taichi后端时，对于Livox非重复扫描，使用Taichi优化版本：
 
 ```python
 from mujoco_lidar import scan_gen_livox_ti
@@ -551,7 +560,7 @@ import taichi as ti
 
 ti.init(arch=ti.gpu)
 
-# ✅ GPU优化版本：直接返回Taichi数组，无需转换
+# ✅ Taichi优化版本：直接返回Taichi数组，无需转换
 livox_gen = scan_gen_livox_ti.LivoxGeneratorTi("mid360")
 rays_theta_ti, rays_phi_ti = livox_gen.sample_ray_angles_ti()
 

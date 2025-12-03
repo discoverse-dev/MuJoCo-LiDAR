@@ -64,7 +64,7 @@ class LidarVisualizer(Node):
         self.rays_theta = np.ascontiguousarray(self.rays_theta).astype(np.float32)
         self.rays_phi = np.ascontiguousarray(self.rays_phi).astype(np.float32)
 
-        self.lidar = MjLidarWrapper(self.mj_model, site_name=self.site_name, backend="gpu")
+        self.lidar = MjLidarWrapper(self.mj_model, site_name=self.site_name, backend="taichi")
 
         n_rays = len(self.rays_theta)
         _rays_phi = ti.ndarray(dtype=ti.f32, shape=n_rays)

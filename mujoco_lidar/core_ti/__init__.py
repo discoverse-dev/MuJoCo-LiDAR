@@ -1,5 +1,5 @@
 # Lazy import to avoid loading taichi when not needed
-# These modules should only be imported when GPU backend is explicitly requested
+# These modules should only be imported when Taichi backend is explicitly requested
 
 __all__ = [
     'mjlidar_ti',
@@ -7,7 +7,7 @@ __all__ = [
 ]
 
 def __getattr__(name):
-    """Lazy import for GPU backend to avoid importing taichi unless needed."""
+    """Lazy import for Taichi backend to avoid importing taichi unless needed."""
     if name == 'mjlidar_ti':
         from . import mjlidar_ti
         return mjlidar_ti
