@@ -56,7 +56,7 @@ class OnnxController:
 
         geomgroup = np.ones((mujoco.mjNGROUP,), dtype=np.ubyte)
         geomgroup[3:] = 0  # 排除group 1中的几何体
-        self.lidar = MjLidarWrapper(mj_model, site_name="lidar", backend="gpu", args={'bodyexclude': mj_model.body("base").id, "geomgroup":geomgroup})
+        self.lidar = MjLidarWrapper(mj_model, site_name="lidar", backend="taichi", args={'bodyexclude': mj_model.body("base").id, "geomgroup":geomgroup})
 
     def get_obs(self, mj_model, mj_data) -> np.ndarray:
         linvel = mj_data.sensor("local_linvel").data

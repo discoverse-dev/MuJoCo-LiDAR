@@ -1,6 +1,6 @@
 # MuJoCo-LiDAR: High-Performance LiDAR Simulation Based on MuJoCo
 
-A high-performance LiDAR simulation tool based on MuJoCo, supporting both CPU and GPU backends, with powerful GPU parallel computing powered by the Taichi programming language.
+A high-performance LiDAR simulation tool based on MuJoCo, supporting CPU, Taichi, and JAX backends.
 
 <p align="center">
   <img src="./assets/go2.png" width="49%" />
@@ -16,32 +16,33 @@ A high-performance LiDAR simulation tool based on MuJoCo, supporting both CPU an
 
 ## 🌟 Features
 
-- **Dual Backend Support**:
-  - **CPU Backend**: Based on MuJoCo's native `mj_multiRay` function, no GPU required, simple and easy to use
-  - **GPU Backend**: Utilizes Taichi for efficient GPU parallel computing, higher performance, supports mesh scenes with millions of faces
-- **High Performance**: GPU backend can generate 1 million+ rays in milliseconds
-- **Dynamic Scenes**: Supports real-time BVH construction for dynamic scenes, enabling fast LiDAR scanning
+- **Multi-Backend Support**:
+  - **CPU Backend**: Based on MuJoCo's native `mj_multiRay` function, no GPU required, simple and easy to use.
+  - **Taichi Backend**: Utilizes Taichi for efficient GPU parallel computing, supports mesh scenes with millions of faces.
+  - **JAX Backend**: Utilizes JAX for GPU parallel computing and MJX integration.
+- **High Performance**: GPU-accelerated backends can generate 1 million+ rays in milliseconds.
+- **Dynamic Scenes**: Supports real-time BVH construction (Taichi backend) for dynamic scenes.
 - **Multiple LiDAR Models**: Supports various scanning patterns:
   - Livox non-repetitive scanning modes: mid360, mid70, mid40, tele, avia
   - Velodyne HDL-64E, VLP-32C
   - Ouster OS-128
   - Customizable grid scanning patterns
-- **Accurate Physical Simulation**: Ray tracing for all MuJoCo geometry types: box, sphere, ellipsoid, cylinder, capsule, plane, and mesh
-- **Flexible API**: Provides both unified Wrapper interface and low-level Core interface
-- **ROS Integration**: Ready-to-use ROS1 and ROS2 examples
+- **Accurate Physical Simulation**: Ray tracing for MuJoCo geometry types.
+- **Flexible API**: Provides unified Wrapper interface.
+- **ROS Integration**: Ready-to-use ROS1 and ROS2 examples.
 
 ## 🔧 Installation
 
 ### System Requirements
 
-**Basic Dependencies (required for both CPU and GPU backends):**
+**Basic Dependencies:**
 - Python >= 3.8
 - MuJoCo >= 3.2.0
 - NumPy >= 1.20.0
 
-**Additional GPU Backend Dependencies:**
-- Taichi >= 1.6.0
-- TIBVH (Taichi-based Linear BVH) - for high-performance spatial data structures and geometry processing
+**Optional Backend Dependencies:**
+- **Taichi**: `taichi >= 1.6.0`, `tibvh`
+- **JAX**: `jax`, `jaxlib`
 
 ### Quick Installation
 
@@ -50,41 +51,40 @@ A high-performance LiDAR simulation tool based on MuJoCo, supporting both CPU an
 git clone https://github.com/TATP-233/MuJoCo-LiDAR.git
 cd MuJoCo-LiDAR
 
-# 1. Install CPU backend only (lightweight, no GPU required)
+# 1. Install basic dependencies (CPU backend)
 pip install -e .
 
-# 2. Install GPU backend dependencies (requires GPU support)
-pip install -e ".[gpu]"
-```
+# 2. Install Taichi backend dependencies
+pip install -e ".[taichi]"
 
-**Note**:
-- CPU backend does not require Taichi and TIBVH, works out of the box
-- GPU backend requires nvidia GPU with CUDA or a Taichi-supported GPU
+# 3. Install JAX backend dependencies
+pip install -e ".[jax]"
+```
 
 ## 📚 Usage Examples
 
 [ROS Integration](#-ros-integration) provides quick start examples for ROS1/2, and [Unitree Go2/G1](#-more-examples).
 
-MuJoCo-LiDAR provides two usage approaches and two backend options:
-
-### Usage Approach Comparison
-
-1. **Wrapper Approach (Recommended)**: Uses `MjLidarWrapper` class, provides a unified high-level interface, automatically handles backend differences
-2. **Core Approach (Advanced)**: Directly uses low-level `MjLidarCPU` or `MjLidarTi` classes, provides fine-grained control
+MuJoCo-LiDAR provides usage approaches and backend options:
 
 ### Backend Selection
 
 1. **CPU Backend**:
-   - Advantages: No GPU required, fewer dependencies, easy to deploy
-   - Use Cases: Simple scenes, fewer rays (<10000), no GPU environment, scenes with only simple geometric primitives, no complex meshes
-   - Performance: Uses MuJoCo's native `mj_multiRay` function
+   - Advantages: No GPU required, fewer dependencies.
+   - Use Cases: Simple scenes, fewer rays (<10000).
+   - Performance: Uses MuJoCo's native `mj_multiRay`.
 
-2. **GPU Backend**:
-   - Advantages: High performance, suitable for large-scale ray tracing
-   - Use Cases: Complex scenes, large number of rays (>10000), real-time performance requirements, complex mesh files
-   - Performance: GPU parallel computing, millisecond-level processing of 1 million+ rays
+2. **Taichi Backend**:
+   - Advantages: High performance, supports complex Mesh scenes.
+   - Use Cases: Complex scenes, large number of rays, Mesh geometries.
+   - Performance: GPU parallel computing with BVH acceleration.
 
-### Approach 1: Using Wrapper (Recommended, Simple and Easy)
+3. **JAX Backend**:
+   - Advantages: High performance, potential for batch simulation.
+   - Use Cases: Research involving JAX/MJX, simple geometric scenes (Primitives).
+   - Note: Does not support Mesh geometries currently.
+
+### Approach: Using Wrapper (Recommended)
 
 The Wrapper approach provides a unified interface that automatically handles CPU and GPU backend differences. This is the **recommended approach**.
 
@@ -159,7 +159,7 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         time.sleep(1./60.)
 ```
 
-#### Example 2: GPU Backend + Wrapper (Loading from MJCF File)
+#### Example 2: Taichi Backend + Wrapper (Loading from MJCF File)
 
 ```python
 import mujoco
@@ -172,14 +172,14 @@ mj_data = mujoco.MjData(mj_model)
 # Generate scan pattern (using Velodyne HDL-64)
 rays_theta, rays_phi = scan_gen.generate_HDL64()
 
-# Create GPU backend LiDAR sensor
+# Create Taichi backend LiDAR sensor
 lidar = MjLidarWrapper(
     mj_model,
     site_name="lidar_site",
-    backend="gpu",  # Use GPU backend
+    backend="taichi",  # Use Taichi backend
     cutoff_dist=100.0,
     args={
-        'max_candidates': 64,  # GPU backend specific parameter: BVH candidate nodes
+        'max_candidates': 64,  # Taichi backend specific parameter: BVH candidate nodes
         'ti_init_args': {'device_memory_GB': 4.0}  # Taichi initialization parameters
     }
 )
@@ -189,7 +189,7 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
     while viewer.is_running():
         mujoco.mj_step(mj_model, mj_data)
         
-        # GPU backend usage is the same as CPU
+        # Taichi backend usage is the same as CPU
         lidar.trace_rays(mj_data, rays_theta, rays_phi)
         points = lidar.get_hit_points()
 ```
@@ -200,7 +200,7 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
 MjLidarWrapper(
     mj_model,           # MuJoCo model
     site_name,          # LiDAR site name
-    backend="cpu",      # "cpu" or "gpu"
+    backend="cpu",      # "cpu" or "taichi"
     cutoff_dist=100.0,  # Maximum detection distance (meters)
     args={}             # Backend-specific parameters
 )
@@ -211,7 +211,7 @@ MjLidarWrapper(
     'bodyexclude': -1       # Body ID to exclude (-1 means no exclusion)
 }
 
-# GPU backend parameters (args)
+# Taichi backend parameters (args)
 {
     'max_candidates': 32,   # Maximum BVH candidate nodes (16-128)
     'ti_init_args': {}      # Taichi initialization parameters
@@ -264,7 +264,7 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         distances = lidar_cpu.get_distances()
 ```
 
-#### Example 4: GPU Core Approach (Taichi)
+#### Example 4: Taichi Core Approach
 
 ```python
 import numpy as np
@@ -280,11 +280,11 @@ ti.init(arch=ti.gpu, device_memory_GB=4.0)
 mj_model = mujoco.MjModel.from_xml_string(xml_string)
 mj_data = mujoco.MjData(mj_model)
 
-# Use Livox scan pattern (GPU optimized version)
+# Use Livox scan pattern (Taichi optimized version)
 livox_gen = scan_gen_livox_ti.LivoxGeneratorTi("mid360")
 
-# Create GPU core instance
-lidar_gpu = MjLidarTi(
+# Create Taichi core instance
+lidar_ti = MjLidarTi(
     mj_model,
     cutoff_dist=100.0,
     max_candidates=64  # BVH candidate nodes
@@ -304,15 +304,15 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         pose_4x4[:3, :3] = mj_data.site("lidar_site").xmat.reshape(3, 3)
         
         # Update BVH and perform ray tracing
-        lidar_gpu.update(mj_data)
-        lidar_gpu.trace_rays(pose_4x4, rays_theta_ti, rays_phi_ti)
+        lidar_ti.update(mj_data)
+        lidar_ti.trace_rays(pose_4x4, rays_theta_ti, rays_phi_ti)
         
         # For Livox, resample angles each time
         rays_theta_ti, rays_phi_ti = livox_gen.sample_ray_angles_ti()
         
-        # Get results (copy from GPU to CPU)
-        points = lidar_gpu.get_hit_points()  # Returns numpy array
-        distances = lidar_gpu.get_distances()
+        # Get results (copy from Taichi to CPU)
+        points = lidar_ti.get_hit_points()  # Returns numpy array
+        distances = lidar_ti.get_distances()
 ```
 
 ## 🤖 ROS Integration
@@ -327,7 +327,7 @@ ROS1 related dependencies need to be installed in advance
 # First terminal: Start ROS core
 roscore
 
-# Second terminal: Run LiDAR simulation (using GPU backend). RViz will be automatically launched.
+# Second terminal: Run LiDAR simulation (using Taichi backend). RViz will be automatically launched.
 python examples/lidar_vis_ros1_wrapper.py --lidar mid360 --rate 12
 ```
 
@@ -343,7 +343,7 @@ python examples/lidar_vis_ros2_wrapper.py --lidar mid360 --rate 12
 **Approach 2: Using Core (Advanced)**
 
 ```bash
-# Using low-level GPU Core API. RViz2 will be automatically launched.
+# Using low-level Taichi Core API. RViz2 will be automatically launched.
 python examples/lidar_vis_ros2.py --lidar mid360 --rate 12
 ```
 
@@ -422,7 +422,7 @@ Example programs publish the following ROS topics:
 from mujoco_lidar import MjLidarWrapper
 
 # Create Wrapper instance
-lidar = MjLidarWrapper(mj_model, site_name="lidar_site", backend="gpu")
+lidar = MjLidarWrapper(mj_model, site_name="lidar_site", backend="taichi")
 
 # Simple call
 lidar.trace_rays(mj_data, rays_theta, rays_phi)
@@ -518,9 +518,9 @@ while True:
     lidar.trace_rays(mj_data, rays_theta, rays_phi)
 ```
 
-### 3. Use Taichi Arrays with GPU Backend
+### 3. Use Taichi Arrays with Taichi Backend
 
-When using GPU Core approach, avoid frequent numpy↔Taichi conversions:
+When using Taichi Core approach, avoid frequent numpy↔Taichi conversions:
 
 ```python
 import taichi as ti
@@ -543,7 +543,7 @@ while True:
 
 ### 4. Livox Scan Pattern Optimization
 
-When using GPU backend, for Livox non-repetitive scanning, use GPU optimized version:
+When using Taichi backend, for Livox non-repetitive scanning, use Taichi optimized version:
 
 ```python
 from mujoco_lidar import scan_gen_livox_ti
@@ -551,7 +551,7 @@ import taichi as ti
 
 ti.init(arch=ti.gpu)
 
-# ✅ GPU optimized version: Returns Taichi arrays directly, no conversion needed
+# ✅ Taichi optimized version: Returns Taichi arrays directly, no conversion needed
 livox_gen = scan_gen_livox_ti.LivoxGeneratorTi("mid360")
 rays_theta_ti, rays_phi_ti = livox_gen.sample_ray_angles_ti()
 

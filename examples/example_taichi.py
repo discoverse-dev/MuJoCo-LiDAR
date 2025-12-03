@@ -23,7 +23,7 @@ def main():
     print("exclude body id:", exclode_body_id)
 
     # 创建激光雷达传感器，使用GPU后端
-    lidar_sensor = MjLidarWrapper(mj_model, site_name="lidar_site", backend="gpu", args={"bodyexclude": exclode_body_id})
+    lidar_sensor = MjLidarWrapper(mj_model, site_name="lidar_site", backend="taichi", args={"bodyexclude": exclode_body_id})
     
     # 执行一次ray casting
     lidar_sensor.trace_rays(mj_data, rays_theta, rays_phi)

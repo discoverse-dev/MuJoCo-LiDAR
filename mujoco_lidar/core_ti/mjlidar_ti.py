@@ -262,5 +262,5 @@ class MjLidarTi:
                                         best_t * dir_local.y,
                                         best_t * dir_local.z])
             else:
-                distances[i] = -1.0
+                distances[i] = 0.0
                 hit_pts[i] = ti.Vector([0.0, 0.0, 0.0])
