@@ -9,7 +9,7 @@ import numpy as np
 # Import taichi for LivoxGenerator class
 import taichi as ti
 
-ti.init(arch=ti.gpu)
+# ti.init(arch=ti.gpu) # Moved to __init__
 
 @ti.data_oriented
 class LivoxGeneratorTi:
@@ -25,6 +25,10 @@ class LivoxGeneratorTi:
     }
 
     def __init__(self, name: str):
+        # Initialize Taichi if not already done
+        if not hasattr(ti, '_is_initialized') or not ti._is_initialized:
+            ti.init(arch=ti.gpu)
+
         if name not in self.livox_lidar_params:
             raise ValueError(f"Invalid LiDAR name: {name}")
         p = self.livox_lidar_params[name]

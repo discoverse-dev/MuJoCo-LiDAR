@@ -90,8 +90,8 @@ MuJoCo-LiDAR 提供两种使用方式和两种后端选择：
    - 性能：GPU并行计算，毫秒级处理100万+射线
 
 3. **JAX后端**：
-   - 优点：高性能，支持批量仿真
-   - 适用场景：涉及JAX/MJX的研究，简单几何场景（Primitives）
+   - 优点：高性能，支持**批量仿真**（多环境并行）
+   - 适用场景：涉及JAX/MJX的研究，大规模并行仿真，简单几何场景（Primitives）
    - 注意：目前不支持Mesh几何体
 
 ### 方式一：使用Wrapper（推荐，简单易用）
@@ -323,6 +323,35 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         # 获取结果（从Taichi拷贝到CPU）
         points = lidar_ti.get_hit_points()  # 返回numpy数组
         distances = lidar_ti.get_distances()
+```
+
+#### 示例5：JAX后端（批量处理）
+
+非常适合MJX或其他基于JAX的大规模并行仿真环境。
+
+```python
+import jax
+import jax.numpy as jnp
+from mujoco_lidar.core_jax import MjLidarJax
+
+# 初始化JAX Lidar（使用host模型）
+lidar = MjLidarJax(mj_model)
+
+# 准备批量数据（例如来自MJX状态）
+# batch_size = 4096
+# geom_xpos: (B, Ngeom, 3)
+# geom_xmat: (B, Ngeom, 3, 3)
+# rays_origin: (B, 3)
+# rays_direction: (B, Nrays, 3)
+
+# 执行批量渲染
+# 返回 distances: (B, Nrays)
+batch_distances = lidar.render_batch(
+    batch_geom_xpos, 
+    batch_geom_xmat, 
+    batch_rays_origin, 
+    batch_rays_direction
+)
 ```
 
 ## 🤖 ROS集成

@@ -51,17 +51,21 @@ class MjLidarJax:
     @partial(jax.jit, static_argnums=(0,))
     def render(self, geom_xpos, geom_xmat, rays_origin, rays_direction):
         """
-        Render LiDAR scan.
+        Render LiDAR scan for a single environment.
         
         Args:
             geom_xpos: (Ngeom, 3) Geometry positions
-            geom_xmat: (Ngeom, 9) Geometry rotation matrices (flattened)
+            geom_xmat: (Ngeom, 9) or (Ngeom, 3, 3) Geometry rotation matrices
             rays_origin: (3,) World position of sensor
-            rays_direction: (N, 3) World direction of rays
+            rays_direction: (Nrays, 3) World direction of rays
             
         Returns:
-            distances: (N,)
+            distances: (Nrays,)
         """
+        # Handle rotation matrix shape
+        if geom_xmat.ndim == 2 and geom_xmat.shape[-1] == 9:
+            geom_xmat = geom_xmat.reshape(-1, 3, 3)
+            
         # Initialize with inf
         min_dist = jnp.full(rays_direction.shape[0], jnp.inf)
         
@@ -82,7 +86,7 @@ class MjLidarJax:
         # 2. Boxes
         if self.box_ids.shape[0] > 0:
             pos = geom_xpos[self.box_ids]
-            rot = geom_xmat[self.box_ids].reshape(-1, 3, 3)
+            rot = geom_xmat[self.box_ids]
             size = self.geom_sizes[self.box_ids]
             
             def dist_all_rays_all_boxes(ro, rd, pos, rot, size):
@@ -97,7 +101,7 @@ class MjLidarJax:
         # 3. Capsules
         if self.capsule_ids.shape[0] > 0:
             pos = geom_xpos[self.capsule_ids]
-            rot = geom_xmat[self.capsule_ids].reshape(-1, 3, 3)
+            rot = geom_xmat[self.capsule_ids]
             size = self.geom_sizes[self.capsule_ids]
             
             def dist_all_rays_all_capsules(ro, rd, pos, rot, size):
@@ -112,7 +116,7 @@ class MjLidarJax:
         # 4. Cylinders
         if self.cylinder_ids.shape[0] > 0:
             pos = geom_xpos[self.cylinder_ids]
-            rot = geom_xmat[self.cylinder_ids].reshape(-1, 3, 3)
+            rot = geom_xmat[self.cylinder_ids]
             size = self.geom_sizes[self.cylinder_ids]
             
             def dist_all_rays_all_cylinders(ro, rd, pos, rot, size):
@@ -127,7 +131,7 @@ class MjLidarJax:
         # 5. Planes
         if self.plane_ids.shape[0] > 0:
             pos = geom_xpos[self.plane_ids]
-            rot = geom_xmat[self.plane_ids].reshape(-1, 3, 3)
+            rot = geom_xmat[self.plane_ids]
             size = self.geom_sizes[self.plane_ids]
             
             def dist_all_rays_all_planes(ro, rd, pos, rot, size):
@@ -142,7 +146,7 @@ class MjLidarJax:
         # 6. Ellipsoids
         if self.ellipsoid_ids.shape[0] > 0:
             pos = geom_xpos[self.ellipsoid_ids]
-            rot = geom_xmat[self.ellipsoid_ids].reshape(-1, 3, 3)
+            rot = geom_xmat[self.ellipsoid_ids]
             size = self.geom_sizes[self.ellipsoid_ids]
             
             def dist_all_rays_all_ellipsoids(ro, rd, pos, rot, size):
@@ -156,4 +160,20 @@ class MjLidarJax:
 
         # Replace inf with 0.0 (no hit)
         return jnp.where(jnp.isinf(min_dist), 0.0, min_dist)
+
+    @partial(jax.jit, static_argnums=(0,))
+    def render_batch(self, geom_xpos, geom_xmat, rays_origin, rays_direction):
+        """
+        Render LiDAR scan for a batch of environments.
+        
+        Args:
+            geom_xpos: (B, Ngeom, 3) Geometry positions
+            geom_xmat: (B, Ngeom, 9) or (B, Ngeom, 3, 3) Geometry rotation matrices
+            rays_origin: (B, 3) World position of sensor per env
+            rays_direction: (B, Nrays, 3) World direction of rays per env
+            
+        Returns:
+            distances: (B, Nrays)
+        """
+        return jax.vmap(self.render)(geom_xpos, geom_xmat, rays_origin, rays_direction)
 

@@ -80,8 +80,8 @@ MuJoCo-LiDAR provides usage approaches and backend options:
    - Performance: GPU parallel computing with BVH acceleration.
 
 3. **JAX Backend**:
-   - Advantages: High performance, potential for batch simulation.
-   - Use Cases: Research involving JAX/MJX, simple geometric scenes (Primitives).
+   - Advantages: High performance, supports **Batch Simulation** (multiple environments in parallel).
+   - Use Cases: Research involving JAX/MJX, large-scale parallel simulation, simple geometric scenes (Primitives).
    - Note: Does not support Mesh geometries currently.
 
 ### Approach: Using Wrapper (Recommended)
@@ -313,6 +313,35 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         # Get results (copy from Taichi to CPU)
         points = lidar_ti.get_hit_points()  # Returns numpy array
         distances = lidar_ti.get_distances()
+```
+
+#### Example 5: JAX Backend (Batch Processing)
+
+Ideal for MJX or other JAX-based massive parallel simulation environments.
+
+```python
+import jax
+import jax.numpy as jnp
+from mujoco_lidar.core_jax import MjLidarJax
+
+# Initialize JAX Lidar (using host model)
+lidar = MjLidarJax(mj_model)
+
+# Prepare batch data (e.g., from MJX state)
+# batch_size = 4096
+# geom_xpos: (B, Ngeom, 3)
+# geom_xmat: (B, Ngeom, 3, 3)
+# rays_origin: (B, 3)
+# rays_direction: (B, Nrays, 3)
+
+# Perform batch rendering
+# Returns distances: (B, Nrays)
+batch_distances = lidar.render_batch(
+    batch_geom_xpos, 
+    batch_geom_xmat, 
+    batch_rays_origin, 
+    batch_rays_direction
+)
 ```
 
 ## 🤖 ROS Integration
