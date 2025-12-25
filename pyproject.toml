@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mujoco_lidar"
-version = "0.2.1"
+version = "0.2.2"
 authors = [
     {name = "Yufei Jia", email = "jyf23@mails.tsinghua.edu.cn"}
 ]
