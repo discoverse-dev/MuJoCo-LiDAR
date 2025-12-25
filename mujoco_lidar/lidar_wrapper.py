@@ -81,8 +81,8 @@ class MjLidarWrapper:
 
         self.site_name = site_name
         self._sensor_pose = np.eye(4, dtype=np.float32)
+        self._local_rays = None
         self._distances = None
-        self._hit_points = None
 
     def _init_taichi_backend(self):
         """Initialize Taichi backend"""
@@ -119,8 +119,16 @@ class MjLidarWrapper:
         try:
             from mujoco_lidar.core_jax.mjlidar_jax import MjLidarJax
             
+            geomgroup = self.args.get('geomgroup', None)
+            bodyexclude = self.args.get('bodyexclude', -1)
+            
             # Pass mj_model directly. MjLidarJax will extract what it needs.
-            self._backend_instance = MjLidarJax(self.mj_model, geom_ids=self.args.get('geom_ids'))
+            self._backend_instance = MjLidarJax(
+                self.mj_model, 
+                geom_ids=self.args.get('geom_ids'),
+                geomgroup=geomgroup,
+                bodyexclude=bodyexclude
+            )
             
         except ImportError as e:
             raise ImportError(
@@ -157,8 +165,8 @@ class MjLidarWrapper:
         return self._sensor_pose[:3,:3].copy()
 
     def update_sensor_pose(self, mj_data, site_name:str):
-        # For CPU/Taichi backend, mj_data is mujoco.MjData
-        if self.backend in ['cpu', 'taichi']:
+        # For CPU/Taichi/JAX backend, mj_data is mujoco.MjData
+        if self.backend in ['cpu', 'taichi', 'jax']:
             self._sensor_pose[:3,:3] = mj_data.site(site_name).xmat.reshape(3,3)
             self._sensor_pose[:3,3] = mj_data.site(site_name).xpos
 
@@ -170,33 +178,19 @@ class MjLidarWrapper:
         target_site = self.site_name if site_name is None else site_name
 
         if self.backend == "jax":
-            import jax.numpy as jnp
+            # Update sensor pose for consistency
+            self.update_sensor_pose(mj_data, target_site)
             
-            # Get site ID
-            site_id = self.mj_model.site(target_site).id
-            
-            # Assume single environment (CPU MjData)
-            # Extract data needed for rendering
-            sensor_pos = jnp.array(mj_data.site(target_site).xpos)
-            sensor_mat = jnp.array(mj_data.site(target_site).xmat.reshape(3, 3))
-            
-            geom_xpos = jnp.array(mj_data.geom_xpos)
-            geom_xmat = jnp.array(mj_data.geom_xmat)
-
-            # Convert angles to local rays
-            theta = jnp.array(ray_theta)
-            phi = jnp.array(ray_phi)
-            
-            x = jnp.cos(phi) * jnp.cos(theta)
-            y = jnp.cos(phi) * jnp.sin(theta)
-            z = jnp.sin(phi)
-            local_rays = jnp.stack([x, y, z], axis=-1) # (Nrays, 3)
-            
-            # Transform to world rays
-            world_rays = local_rays @ sensor_mat.T
-                
-            # Render
-            self._distances = self._backend_instance.render(geom_xpos, geom_xmat, sensor_pos, world_rays)
+            # Use JITed trace_rays from backend instance
+            # This handles ray generation, transformation and rendering in one JIT call
+            self._distances, self._local_rays = self._backend_instance.trace_rays(
+                mj_data.geom_xpos,
+                mj_data.geom_xmat,
+                mj_data.site(target_site).xpos,
+                mj_data.site(target_site).xmat.reshape(3, 3),
+                ray_theta,
+                ray_phi
+            )
             
             return self._distances
             
@@ -231,11 +225,19 @@ class MjLidarWrapper:
     
     def get_hit_points(self):
         if self.backend == "jax":
-            return None 
+            if self._distances is None or self._local_rays is None:
+                return np.zeros((0, 3), dtype=np.float32)
+            # _distances: (N,), _local_rays: (N, 3)
+            # Convert to numpy for performance in Python loops
+            d = np.asarray(self._distances)
+            print(d.shape, d.max(), d.min())
+            return np.asarray(self._distances[:, np.newaxis] * self._local_rays)
         return self._backend_instance.get_hit_points()
     
     def get_distances(self):
         if self.backend == "jax":
-            return self._distances
+            if self._distances is None:
+                return np.zeros(0, dtype=np.float32)
+            return np.asarray(self._distances)
         return self._backend_instance.get_distances()
 
