@@ -65,7 +65,7 @@ class OnnxController:
 
         geomgroup = np.ones((mujoco.mjNGROUP,), dtype=np.ubyte)
         geomgroup[3:] = 0  # 排除group 1中的几何体
-        self.lidar = MjLidarWrapper(mj_model, site_name="lidar", backend="taichi", args={'bodyexclude': -1, "geomgroup":geomgroup})
+        self.lidar = MjLidarWrapper(mj_model, site_name="lidar", backend="jax", args={'bodyexclude': mj_model.body("torso_link").id, "geomgroup":geomgroup})
 
     def get_obs(self, model, data) -> np.ndarray:
         linvel = data.sensor("local_linvel_pelvis").data
@@ -113,7 +113,7 @@ if __name__ == "__main__":
 
     ctrl_dt = 0.02
     lidar_dt = 1. / 10.
-    mj_model.opt.timestep = 0.002
+    mj_model.opt.timestep = 0.004
 
     policy = OnnxController(
         mj_model,

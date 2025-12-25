@@ -166,7 +166,7 @@ def load_callback(model=None, data=None):
     mujoco.mj_resetDataKeyframe(model, data, 0)
 
     ctrl_dt = 0.02
-    sim_dt = 0.002
+    sim_dt = 0.004
     n_substeps = int(round(ctrl_dt / sim_dt))
     model.opt.timestep = sim_dt
 
