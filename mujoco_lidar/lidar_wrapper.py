@@ -1,5 +1,6 @@
 import mujoco
 import numpy as np
+from typing import Optional, Dict, Any, Tuple, Union
 
 class MjLidarWrapper:
     """
@@ -61,8 +62,8 @@ class MjLidarWrapper:
         ... )
     """
     
-    def __init__(self, mj_model, site_name:str,
-                 backend:str="taichi", cutoff_dist:float=100.0, args:dict={}):
+    def __init__(self, mj_model: mujoco.MjModel, site_name: str,
+                 backend: str = "taichi", cutoff_dist: float = 100.0, args: Dict[str, Any] = {}):
         if backend == "gpu":
             backend = "taichi"
         self.backend = backend
@@ -81,10 +82,10 @@ class MjLidarWrapper:
 
         self.site_name = site_name
         self._sensor_pose = np.eye(4, dtype=np.float32)
-        self._local_rays = None
-        self._distances = None
+        self._local_rays: Optional[np.ndarray] = None
+        self._distances: Optional[np.ndarray] = None
 
-    def _init_taichi_backend(self):
+    def _init_taichi_backend(self) -> None:
         """Initialize Taichi backend"""
         try:
             # Lazy import: only import when Taichi backend is selected
@@ -114,7 +115,7 @@ class MjLidarWrapper:
                 f"Error: {e}"
             )
 
-    def _init_jax_backend(self):
+    def _init_jax_backend(self) -> None:
         """Initialize JAX backend"""
         try:
             from mujoco_lidar.core_jax.mjlidar_jax import MjLidarJax
@@ -136,7 +137,7 @@ class MjLidarWrapper:
                 f"Error: {e}"
             )
     
-    def _init_cpu_backend(self):
+    def _init_cpu_backend(self) -> None:
         """Initialize CPU backend"""
         try:
             from mujoco_lidar.core_cpu.mjlidar_cpu import MjLidarCPU
@@ -157,20 +158,20 @@ class MjLidarWrapper:
             )
 
     @property
-    def sensor_position(self):
+    def sensor_position(self) -> np.ndarray:
         return self._sensor_pose[:3,3].copy()
 
     @property
-    def sensor_rotation(self):
+    def sensor_rotation(self) -> np.ndarray:
         return self._sensor_pose[:3,:3].copy()
 
-    def update_sensor_pose(self, mj_data, site_name:str):
+    def update_sensor_pose(self, mj_data: mujoco.MjData, site_name: str) -> None:
         # For CPU/Taichi/JAX backend, mj_data is mujoco.MjData
         if self.backend in ['cpu', 'taichi', 'jax']:
             self._sensor_pose[:3,:3] = mj_data.site(site_name).xmat.reshape(3,3)
             self._sensor_pose[:3,3] = mj_data.site(site_name).xpos
 
-    def trace_rays(self, mj_data, ray_theta, ray_phi, site_name:str=None):
+    def trace_rays(self, mj_data: mujoco.MjData, ray_theta: np.ndarray, ray_phi: np.ndarray, site_name: Optional[str] = None) -> np.ndarray:
         """
         Trace rays.
         For JAX backend, mj_data can be mujoco.MjData.
@@ -223,14 +224,14 @@ class MjLidarWrapper:
             self._backend_instance.trace_rays(self._sensor_pose, ray_theta, ray_phi)
             return self._backend_instance.get_distances()
     
-    def get_hit_points(self):
+    def get_hit_points(self) -> np.ndarray:
         if self.backend == "jax":
             if self._distances is None or self._local_rays is None:
                 return np.zeros((0, 3), dtype=np.float32)
             return np.asarray(self._distances[:, np.newaxis] * self._local_rays)
         return self._backend_instance.get_hit_points()
     
-    def get_distances(self):
+    def get_distances(self) -> np.ndarray:
         if self.backend == "jax":
             if self._distances is None:
                 return np.zeros(0, dtype=np.float32)

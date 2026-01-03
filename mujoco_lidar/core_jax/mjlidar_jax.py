@@ -1,8 +1,10 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+import mujoco
 from mujoco import mjtGeom
 from functools import partial
+from typing import Optional, Tuple, Union
 
 from .geometry import (
     ray_sphere_intersection,
@@ -14,7 +16,7 @@ from .geometry import (
 )
 
 class MjLidarJax:
-    def __init__(self, model, geom_ids=None, geomgroup=None, bodyexclude=-1):
+    def __init__(self, model: mujoco.MjModel, geom_ids: Optional[Union[np.ndarray, list]] = None, geomgroup: Optional[Union[np.ndarray, list]] = None, bodyexclude: int = -1):
         self.model = model
         
         # If geom_ids is None, use all geoms
@@ -63,7 +65,7 @@ class MjLidarJax:
         self.geom_sizes = jnp.array(model.geom_size)
         
     @partial(jax.jit, static_argnums=(0,))
-    def render(self, geom_xpos, geom_xmat, rays_origin, rays_direction):
+    def render(self, geom_xpos: jax.Array, geom_xmat: jax.Array, rays_origin: jax.Array, rays_direction: jax.Array) -> jax.Array:
         """
         Render LiDAR scan for a single environment.
         
@@ -196,7 +198,7 @@ class MjLidarJax:
         return distance
 
     @partial(jax.jit, static_argnums=(0,))
-    def trace_rays(self, geom_xpos, geom_xmat, sensor_pos, sensor_mat, ray_theta, ray_phi):
+    def trace_rays(self, geom_xpos: jax.Array, geom_xmat: jax.Array, sensor_pos: jax.Array, sensor_mat: jax.Array, ray_theta: jax.Array, ray_phi: jax.Array) -> Tuple[jax.Array, jax.Array]:
         """
         Full ray tracing pipeline: ray generation, transformation, and rendering.
         """
@@ -215,7 +217,7 @@ class MjLidarJax:
         return distances, local_rays
 
     @partial(jax.jit, static_argnums=(0,))
-    def render_batch(self, geom_xpos, geom_xmat, rays_origin, rays_direction):
+    def render_batch(self, geom_xpos: jax.Array, geom_xmat: jax.Array, rays_origin: jax.Array, rays_direction: jax.Array) -> jax.Array:
         """
         Render LiDAR scan for a batch of environments.
         

@@ -3,10 +3,11 @@ import sys
 import mujoco
 import numpy as np
 from scipy.spatial.transform import Rotation
+from typing import Tuple, Optional, Set, List, Any
 
 from pynput import keyboard
 
-def create_demo_scene(scene="primitive"):
+def create_demo_scene(scene: str = "primitive") -> Tuple[mujoco.MjModel, mujoco.MjData]:
     """创建一个用于测试的mujoco场景，包含所有支持的几何体类型"""
     if scene == "floor":
         xml = """
@@ -145,7 +146,7 @@ def create_demo_scene(scene="primitive"):
     return model, data
 
 class KeyboardListener:
-    def __init__(self, lidar_position, lidar_orientation):
+    def __init__(self, lidar_position: np.ndarray, lidar_orientation: np.ndarray):
         # 存储激光雷达的位置和方向
         self.lidar_position = lidar_position
         self.lidar_orientation = lidar_orientation
@@ -159,7 +160,7 @@ class KeyboardListener:
         self.height_speed = 0.5  # 高度调整速度 (米/秒)
         
         # 当前按下的键
-        self.pressed_keys = set()
+        self.pressed_keys: Set[Any] = set()
 
         self.running = True
         # 启动键盘监听器
@@ -199,7 +200,7 @@ class KeyboardListener:
             # 忽略特殊键的AttributeError
             pass
 
-    def on_release(self, key):
+    def on_release(self, key: Any) -> None:
         """处理按键释放事件"""
         try:
             # 从已按下的键集合中移除释放的键
@@ -211,7 +212,7 @@ class KeyboardListener:
             # 忽略特殊键的AttributeError
             pass
 
-    def update_lidar_pose(self, dt):
+    def update_lidar_pose(self, dt: float) -> Tuple[np.ndarray, np.ndarray]:
         """根据当前按下的键更新激光雷达的位置和姿态"""
         # 获取当前的欧拉角
         pitch = self.euler_angles[1]
@@ -274,7 +275,7 @@ if sys.platform == "linux":
     try:
         from visualization_msgs.msg import Marker
 
-        def create_marker_from_geom(geom, marker_id, frame_id="world"):
+        def create_marker_from_geom(geom: Any, marker_id: int, frame_id: str = "world") -> List[Any]:
             """从MuJoCo几何体创建ROS可视化标记"""
             # 胶囊体需要特殊处理，返回标记列表
             if geom.type == 3:  # CAPSULE
@@ -338,7 +339,7 @@ if sys.platform == "linux":
             
             return [marker]  # 返回单个标记的列表，保持接口一致
 
-        def create_capsule_markers(geom, marker_id, frame_id="world"):
+        def create_capsule_markers(geom: Any, marker_id: int, frame_id: str = "world") -> List[Any]:
             """创建胶囊体的可视化标记（一个圆柱体和两个半球）"""
             markers = []
             radius = float(geom.size[0])         # 半径

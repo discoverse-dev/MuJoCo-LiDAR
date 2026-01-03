@@ -1,6 +1,7 @@
 # Lazy import to avoid loading dependencies when not needed
 # Import the wrapper class directly
 from mujoco_lidar.lidar_wrapper import MjLidarWrapper
+from typing import Any
 
 __all__ = [
     "MjLidarWrapper",
@@ -15,7 +16,7 @@ __all__ = [
     "generate_airy96"
 ]
 
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     """Lazy import for scan generation functions."""
     # LivoxGeneratorTi requires taichi - import from scan_gen_livox_ti
     if name == "LivoxGeneratorTi":

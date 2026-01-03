@@ -1,26 +1,27 @@
 import mujoco
 import numpy as np
+from typing import Optional
 
 class MjLidarCPU:
     def __init__(self, 
-                 mj_model:mujoco.MjModel, cutoff_dist:float=100.0, 
-                 geomgroup:np.ndarray=None, bodyexclude:int=-1) -> None:
+                 mj_model: mujoco.MjModel, cutoff_dist: float = 100.0, 
+                 geomgroup: Optional[np.ndarray] = None, bodyexclude: int = -1) -> None:
 
         self.mj_model = mj_model
         self.cutoff_dist = cutoff_dist
         self.geomgroup = geomgroup
         self.bodyexclude = bodyexclude
 
-        self._dist = None
-        self._hit_points = None
+        self._dist: Optional[np.ndarray] = None
+        self._hit_points: Optional[np.ndarray] = None
 
-    def update(self, mj_data:mujoco.MjData) -> None:
+    def update(self, mj_data: mujoco.MjData) -> None:
         self.mj_data = mj_data
 
     def trace_rays(self,
                    pose_4x4: np.ndarray, 
-                   ray_theta:np.ndarray,
-                   ray_phi:np.ndarray) -> None:
+                   ray_theta: np.ndarray,
+                   ray_phi: np.ndarray) -> None:
 
         if ray_phi.shape[0] != ray_theta.shape[0]:
             raise ValueError("ray_phi and ray_theta must have the same shape")
@@ -63,8 +64,8 @@ class MjLidarCPU:
         # Update the pcl frame with local frame data
         self._hit_points = local_vecs * self._dist[:, np.newaxis]
 
-    def get_hit_points(self):
+    def get_hit_points(self) -> Optional[np.ndarray]:
         return self._hit_points
 
-    def get_distances(self):
+    def get_distances(self) -> Optional[np.ndarray]:
         return self._dist

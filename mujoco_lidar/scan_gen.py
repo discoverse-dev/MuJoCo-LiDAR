@@ -7,10 +7,11 @@
 import os
 import numpy as np
 from functools import lru_cache
+from typing import Tuple, Dict, Any
 
 class LivoxGenerator:
     """生成 Livox 激光雷达的扫描模式"""
-    livox_lidar_params = {
+    livox_lidar_params: Dict[str, Dict[str, Any]] = {
         "avia": {"laser_min_range": 0.1, "laser_max_range": 200.0, "horizontal_fov": 70.4, "vertical_fov": 77.2, "samples": 24000},
         "HAP": {"laser_min_range": 0.1, "laser_max_range": 200.0, "samples": 45300, "downsample": 1},
         "horizon": {"laser_min_range": 0.1, "laser_max_range": 200.0, "horizontal_fov": 81.7, "vertical_fov": 25.1, "samples": 24000},
@@ -20,7 +21,7 @@ class LivoxGenerator:
         "tele": {"laser_min_range": 0.1, "laser_max_range": 200.0, "horizontal_fov": 14.5, "vertical_fov": 16.1, "samples": 24000},
     }
 
-    def __init__(self, name):
+    def __init__(self, name: str):
         if name in self.livox_lidar_params:
             self.laser_min_range = self.livox_lidar_params[name]["laser_min_range"]
             self.laser_max_range = self.livox_lidar_params[name]["laser_max_range"]
@@ -35,7 +36,7 @@ class LivoxGenerator:
             raise ValueError(f"Invalid LiDAR name: {name}")
         self.currStartIndex = 0
 
-    def sample_ray_angles(self, downsample=1):
+    def sample_ray_angles(self, downsample: int = 1) -> Tuple[np.ndarray, np.ndarray]:
         if self.currStartIndex + self.samples > self.n_rays:
             self.ray_part1 = self.ray_angles[self.currStartIndex:]
             self.ray_part2 = self.ray_angles[:self.samples - len(self.ray_part1)]
@@ -52,7 +53,7 @@ class LivoxGenerator:
 # =======================================================================
 # 生成网格状扫描模式
 # =======================================================================
-def generate_grid_scan_pattern(num_ray_cols, num_ray_rows, theta_range=(-np.pi, np.pi), phi_range=(-np.pi/3, np.pi/3)):
+def generate_grid_scan_pattern(num_ray_cols: int, num_ray_rows: int, theta_range: Tuple[float, float] = (-np.pi, np.pi), phi_range: Tuple[float, float] = (-np.pi/3, np.pi/3)) -> Tuple[np.ndarray, np.ndarray]:
     """
     生成网格状扫描模式
     
@@ -80,7 +81,7 @@ def generate_grid_scan_pattern(num_ray_cols, num_ray_rows, theta_range=(-np.pi, 
 # =======================================================================
 # 创建激光雷达扫描线的角度数组，仅包含水平方向
 # =======================================================================
-def create_lidar_single_line(horizontal_resolution=360, horizontal_fov=2*np.pi):
+def create_lidar_single_line(horizontal_resolution: int = 360, horizontal_fov: float = 2*np.pi) -> Tuple[np.ndarray, np.ndarray]:
     """创建激光雷达扫描线的角度数组，仅包含水平方向"""
     h_angles = np.linspace(-horizontal_fov/2, horizontal_fov/2, horizontal_resolution)
     v_angles = np.zeros_like(h_angles)
@@ -91,11 +92,11 @@ def create_lidar_single_line(horizontal_resolution=360, horizontal_fov=2*np.pi):
 # 1. Velodyne HDL-64 (任意 360° 旋转式激光雷达)
 # =======================================================================
 def generate_HDL64(     # |参数            | Velodyne HDL-64
-    f_rot=10.0,            # |转速 (Hz)       |  5-20Hz
-    sample_rate=1.1e6,     # |采样率 (Hz)     | 2.2MHz(双返回模式)
-    n_channels=64,         # |垂直通道数       | 64 (Vertical Angular Resolution : 0.4°)
-    phi_fov=(-24.9, 2.)    # |垂直视场角 (度)  | (-24.9°, 2.°)
-):
+    f_rot: float = 10.0,            # |转速 (Hz)       |  5-20Hz
+    sample_rate: float = 1.1e6,     # |采样率 (Hz)     | 2.2MHz(双返回模式)
+    n_channels: int = 64,         # |垂直通道数       | 64 (Vertical Angular Resolution : 0.4°)
+    phi_fov: Tuple[float, float] = (-24.9, 2.)    # |垂直视场角 (度)  | (-24.9°, 2.°)
+) -> Tuple[np.ndarray, np.ndarray]:
     # 转换为弧度
     phi_min, phi_max = np.deg2rad(phi_fov)
     
@@ -119,7 +120,7 @@ def generate_HDL64(     # |参数            | Velodyne HDL-64
 # https://www.mapix.com/lidar-scanner-sensors/velodyne/velodyne-vlp-32c/
 # =======================================================================
 @lru_cache(maxsize=8)
-def _get_vlp32_angles():
+def _get_vlp32_angles() -> np.ndarray:
     """使用缓存获取VLP-32的角度分布，避免重复计算，返回弧度值"""
     vlp32_angles = np.array([
         -25.0, -22.5, -20.0, -15.0, -13.0, -10.0, -5.0, -3.0, 
@@ -132,9 +133,9 @@ def _get_vlp32_angles():
     return vlp32_angles
 
 def generate_vlp32(
-    f_rot=10.0,       # 转速 (Hz)
-    sample_rate=1.2e6 # 采样率 (Hz)
-):
+    f_rot: float = 10.0,       # 转速 (Hz)
+    sample_rate: float = 1.2e6 # 采样率 (Hz)
+) -> Tuple[np.ndarray, np.ndarray]:
     # 垂直角参数
     phi = _get_vlp32_angles()       # shape: (n_channels,)
     
@@ -155,9 +156,9 @@ def generate_vlp32(
 # https://www.general-laser.at/en/shop-en/ouster-os0-128-lidar-sensor-en
 # =======================================================================
 def generate_os128(
-    f_rot=20.0,            # 转速 (Hz)
-    sample_rate=5.2e6,     # 采样率 (Hz)
-):
+    f_rot: float = 20.0,            # 转速 (Hz)
+    sample_rate: float = 5.2e6,     # 采样率 (Hz)
+) -> Tuple[np.ndarray, np.ndarray]:
     # 垂直角参数（均匀分布）
     n_channels = 128
     phi = np.deg2rad(np.linspace(-22.5, 22.5, n_channels))  # shape: (n_channels,)
@@ -178,7 +179,7 @@ def generate_os128(
 # 4. Robosense Airy-96 模式
 # https://www.robosense.cn/rslidar/Airy
 # =======================================================================
-def generate_airy96():
+def generate_airy96() -> Tuple[np.ndarray, np.ndarray]:
     # 垂直角参数（均匀分布）
     n_channels = 96
     phi = np.deg2rad(np.linspace(0., 89.5, n_channels))  # shape: (n_channels,)

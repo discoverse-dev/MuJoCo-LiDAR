@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-def ray_sphere_intersection(ray_origin, ray_dir, sphere_pos, sphere_radius):
+def ray_sphere_intersection(ray_origin: jax.Array, ray_dir: jax.Array, sphere_pos: jax.Array, sphere_radius: float | jax.Array) -> jax.Array:
     """
     Calculate intersection between a ray and a sphere.
     
@@ -40,7 +40,7 @@ def ray_sphere_intersection(ray_origin, ray_dir, sphere_pos, sphere_radius):
     
     return t
 
-def ray_plane_intersection(ray_origin, ray_dir, plane_pos, plane_rot, plane_size):
+def ray_plane_intersection(ray_origin: jax.Array, ray_dir: jax.Array, plane_pos: jax.Array, plane_rot: jax.Array, plane_size: jax.Array) -> jax.Array:
     """
     Calculate intersection between a ray and a plane.
     Plane is defined by position, rotation, and half-sizes.
@@ -87,7 +87,7 @@ def ray_plane_intersection(ray_origin, ray_dir, plane_pos, plane_rot, plane_size
     
     return jnp.where(valid, t, jnp.inf)
 
-def ray_box_intersection(ray_origin, ray_dir, box_pos, box_rot, box_size):
+def ray_box_intersection(ray_origin: jax.Array, ray_dir: jax.Array, box_pos: jax.Array, box_rot: jax.Array, box_size: jax.Array) -> jax.Array:
     """
     Ray-Box intersection using Slab method.
     Box is defined by center, rotation matrix, and half-sizes.
@@ -136,7 +136,7 @@ def ray_box_intersection(ray_origin, ray_dir, box_pos, box_rot, box_size):
     
     return t
 
-def ray_capsule_intersection(ray_origin, ray_dir, cap_pos, cap_rot, cap_size):
+def ray_capsule_intersection(ray_origin: jax.Array, ray_dir: jax.Array, cap_pos: jax.Array, cap_rot: jax.Array, cap_size: jax.Array) -> jax.Array:
     """
     Ray-Capsule intersection.
     Capsule is aligned with local Z axis (usually).
@@ -220,7 +220,7 @@ def ray_capsule_intersection(ray_origin, ray_dir, cap_pos, cap_rot, cap_size):
     
     return jnp.where(is_inside, 0.0, t_final)
 
-def ray_cylinder_intersection(ray_origin, ray_dir, cyl_pos, cyl_rot, cyl_size):
+def ray_cylinder_intersection(ray_origin: jax.Array, ray_dir: jax.Array, cyl_pos: jax.Array, cyl_rot: jax.Array, cyl_size: jax.Array) -> jax.Array:
     """
     Ray-Cylinder intersection (Finite).
     """
@@ -279,7 +279,7 @@ def ray_cylinder_intersection(ray_origin, ray_dir, cyl_pos, cyl_rot, cyl_size):
     
     return jnp.where(is_inside, 0.0, t_final)
 
-def ray_ellipsoid_intersection(ray_origin, ray_dir, ell_pos, ell_rot, ell_size):
+def ray_ellipsoid_intersection(ray_origin: jax.Array, ray_dir: jax.Array, ell_pos: jax.Array, ell_rot: jax.Array, ell_size: jax.Array) -> jax.Array:
     """
     Ray-Ellipsoid intersection.
     """

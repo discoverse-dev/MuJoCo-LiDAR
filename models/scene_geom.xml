@@ -1,0 +1,68 @@
+<mujoco model="go2 feetonly flat terrain scene">
+  <include file="unitree_go2/go2_mjx.xml"/>
+  <statistic center="0 0 0.1" extent="0.8" meansize="0.04"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="120" elevation="-20"/>
+    <map force="0.01"/>
+    <scale forcewidth="0.3" contactwidth="0.5" contactheight="0.2"/>
+    <quality shadowsize="8192"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.4314 0.5294 0.6431" rgb2="0 0 0" width="512" height="512"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.4314 0.5294 0.6431" rgb2="0.8157 0.8549 0.9059"
+      markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="1 1" reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+      <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
+      <geom name="floor" size="4 4 0.01" type="plane" material="groundplane" contype="1" conaffinity="0" priority="1" friction="0.6" condim="3"/>
+      <geom name="wall1" type="box" size="1e-3 4 0.5" pos=" 4 0 0.5" rgba="0.9 0.9 0.9 1"/>
+      <geom name="wall2" type="box" size="1e-3 4 0.5" pos="-4 0 0.5" rgba="0.9 0.9 0.9 1"/>
+      <geom name="wall3" type="box" size="4 1e-3 0.5" pos="0  4 0.5" rgba="0.9 0.9 0.9 1"/>
+      <geom name="wall4" type="box" size="4 1e-3 0.5" pos="0 -4 0.5" rgba="0.9 0.9 0.9 1"/>
+
+      <!-- 盒子 -->
+      <geom name="box1" type="box" size="0.25 0.5 0.5" pos="2.5 0 0.5" euler="45 -45 0" rgba="1 0 0 1"/>
+      <geom name="box2" type="box" size="0.7 0.4 0.2" pos="-2.5 -0.5 0.2" rgba="1 0 0 1"/>
+      <geom name="box3" type="box" size="0.3 0.1 0.3" pos="2.2 -2 0.3" rgba="1 0 0 1"/>
+      <geom name="box4" type="box" size="0.1 0.1 0.4" pos="0 -2.1 0.4" rgba="1 0 0 1"/>
+      <geom name="box5" type="box" size="0.2 0.3 0.4" pos="-2.1 -3 0.4" rgba="1 0 0 1"/>
+      <geom name="box6" type="box" size="0.35 0.25 0.2" pos="2.1 2.5 0.2" rgba="1 0 0 1"/>
+      <geom name="box7" type="box" size="0.5 0.35 0.35" pos="0 1.5 0.4" rgba="1 0 0 1"/>
+
+      <!-- 球体 -->
+      <geom name="sphere1" type="sphere" size="0.3" pos="2 1 0.5" rgba="0 1 0 1"/>
+      <geom name="sphere2" type="sphere" size="0.2" pos="-2.5 1 0.3" rgba="0 1 0 1"/>
+
+      <!-- 圆柱体 -->
+      <geom name="cylinder1" type="cylinder" size="0.2 0.3" pos="-1.5 -2.5 0.4" quat="1 0 1 0" rgba="0 0 1 1"/>
+      <geom name="cylinder2" type="cylinder" size="0.1 0.2" pos="1 -1 0.3" rgba="0 0 1 1"/>
+
+      <!-- 椭球体 -->
+      <geom name="ellipsoid1" type="ellipsoid" size="0.2 0.2 0.5" pos="1.5 -3 0.5" rgba="1 1 0 1"/>
+      <geom name="ellipsoid2" type="ellipsoid" size="0.2 0.3 0.3" pos="-2.5 2.5 0.3" rgba="1 1 0 1"/>
+
+      <!-- 胶囊体 -->
+      <geom name="capsule1" type="capsule" size="0.2 0.35" pos="-1.5 0.5 0.8" quat="1 3 1 1" rgba="1 0 1 1"/>
+      <geom name="capsule2" type="capsule" size="0.2 0.3" pos="-1.5 -1 0.6" quat="0.1 0 0.6 0.2" rgba="1 0 1 1"/>
+
+  </worldbody>
+  
+  <keyframe>
+    <key name="home"
+      qpos="
+      0 0 0.278
+      1 0 0 0
+      0.1 0.9 -1.8
+      -0.1 0.9 -1.8
+      0.1 0.9 -1.8
+      -0.1 0.9 -1.8"
+      ctrl="0.1 0.9 -1.8 -0.1 0.9 -1.8 0.1 0.9 -1.8 -0.1 0.9 -1.8"/>
+  </keyframe>
+
+</mujoco>

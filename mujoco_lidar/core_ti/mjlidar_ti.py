@@ -1,6 +1,7 @@
 import mujoco
 import numpy as np
 import taichi as ti
+from typing import Optional
 
 from tibvh import AABB, LBVH
 from tibvh.geometry import (
@@ -17,8 +18,8 @@ from tibvh.geometry import (
 @ti.data_oriented
 class MjLidarTi:
     def __init__(self, 
-                 mj_model:mujoco.MjModel, cutoff_dist:float=100.0, 
-                 geomgroup:np.ndarray=None, bodyexclude:int=-1, max_candidates: int = 32):
+                 mj_model: mujoco.MjModel, cutoff_dist: float = 100.0, 
+                 geomgroup: Optional[np.ndarray] = None, bodyexclude: int = -1, max_candidates: int = 32):
         self.max_candidates = max_candidates
         self._cutoff = min(cutoff_dist, 1e9)
 
@@ -177,10 +178,10 @@ class MjLidarTi:
         self._trace_kernel(rot_ti, origin_ti, theta_ti, phi_ti, n_rays, self._hit_points, self._distances)
         ti.sync()
 
-    def get_hit_points(self):
+    def get_hit_points(self) -> np.ndarray:
         return self._hit_points.to_numpy()
 
-    def get_distances(self):
+    def get_distances(self) -> np.ndarray:
         return self._distances.to_numpy()
 
     def _ensure_capacity(self, n_rays: int):

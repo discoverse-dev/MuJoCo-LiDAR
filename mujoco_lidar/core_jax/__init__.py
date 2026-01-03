@@ -6,7 +6,9 @@ __all__ = [
     'MjLidarJax',
 ]
 
-def __getattr__(name):
+from typing import Any
+
+def __getattr__(name: str) -> Any:
     """Lazy import for JAX backend to avoid importing jax unless needed."""
     if name == 'mjlidar_jax':
         from . import mjlidar_jax
