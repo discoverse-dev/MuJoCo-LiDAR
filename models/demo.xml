@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 <mujoco model="demo">
     <asset>
-        <mesh name="eight" file="eight.obj"/>
+        <mesh name="eight" file="assets/eight.obj"/>
     </asset>
 
     <worldbody>

@@ -6,7 +6,7 @@
   </visual>
 
   <asset>
-    <mesh name="eight" file="eight.obj"/>
+    <mesh name="eight" file="assets/eight.obj"/>
   </asset>
 
   <worldbody>

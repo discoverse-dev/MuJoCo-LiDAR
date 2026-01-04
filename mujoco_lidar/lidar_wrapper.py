@@ -22,7 +22,7 @@ class MjLidarWrapper:
                     - >= 0: Exclude all geometries of the specified body
                 
             Taichi Backend Arguments:
-                max_candidates (int): Maximum number of BVH candidate nodes. Default: 32
+                max_candidates (int): Maximum number of BVH candidate nodes. Default: 64
                     - Larger values: More accurate but slower
                     - Smaller values: Faster but may miss collisions
                     - Recommended: 16-32 (simple), 32-64 (medium), 64-128 (complex)
@@ -99,7 +99,7 @@ class MjLidarWrapper:
             # Create Taichi backend instance
             geomgroup = self.args.get('geomgroup', None)
             bodyexclude = self.args.get('bodyexclude', -1)
-            max_candidates = self.args.get('max_candidates', 32)
+            max_candidates = self.args.get('max_candidates', 64)
             self._backend_instance = MjLidarTi(
                 self.mj_model, 
                 cutoff_dist=self.cutoff_dist,

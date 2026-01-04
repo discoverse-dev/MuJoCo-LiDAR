@@ -307,6 +307,61 @@ class MjLidarTi:
     def _reset_overflow(self):
         self._overflow[None] = 0
 
+    @ti.func
+    def _trace_single_ray(self, o, ray_dir):
+        candidates, candidates_count = self.scene_lbvh.collect_intersecting_elements(o, ray_dir)
+        if candidates_count >= self.max_candidates-1:
+            ti.atomic_add(self._overflow[None], 1)
+
+        best_t = 1e10
+        for c in range(candidates_count):
+            t_hit = -1.0
+            if candidates[c] < self.ngeom:
+                geom_id = candidates[c]
+                geom_type = self.geom_types[geom_id]
+                geom_center = self.geom_positions[geom_id]
+                geom_size = self.geom_sizes[geom_id]
+                geom_rot = self.geom_rotations[geom_id]
+
+                if geom_type == -1:  # exclude
+                    pass
+                elif geom_type == 0:  # PLANE
+                    t_hit = ray_plane_distance(o, ray_dir, geom_center, geom_size, geom_rot)
+                elif geom_type == 2:  # SPHERE
+                    t_hit = ray_sphere_distance(o, ray_dir, geom_center, geom_size, geom_rot)
+                elif geom_type == 3:  # CAPSULE
+                    t_hit = ray_capsule_distance(o, ray_dir, geom_center, geom_size, geom_rot)
+                elif geom_type == 4:  # ELLIPSOID
+                    t_hit = ray_ellipsoid_distance(o, ray_dir, geom_center, geom_size, geom_rot)
+                elif geom_type == 5:  # CYLINDER
+                    t_hit = ray_cylinder_distance(o, ray_dir, geom_center, geom_size, geom_rot)
+                elif geom_type == 6:  # BOX
+                    t_hit = ray_box_distance(o, ray_dir, geom_center, geom_size, geom_rot)
+                elif geom_type == 7:  # MESH
+                    pass
+            elif self.nface:
+                tri_id = candidates[c] - self.ngeom
+                v0 = self.tri_v0[tri_id]
+                v1 = self.tri_v1[tri_id]
+                v2 = self.tri_v2[tri_id]
+                t_hit = ray_triangle_distance(o, ray_dir, v0, v1, v2)
+
+            if 0 <= t_hit and t_hit < best_t:
+                best_t = t_hit
+
+        if ti.static(self.nhfield_face > 0):
+            h_candidates, h_candidates_count = self.hfield_lbvh.collect_intersecting_elements(o, ray_dir)
+            for c in range(h_candidates_count):
+                tri_id = h_candidates[c]
+                v0 = self.hfield_v0[tri_id]
+                v1 = self.hfield_v1[tri_id]
+                v2 = self.hfield_v2[tri_id]
+                t_hit = ray_triangle_distance(o, ray_dir, v0, v1, v2)
+                
+                if 0 <= t_hit and t_hit < best_t:
+                    best_t = t_hit
+        return best_t
+
     @ti.kernel
     def _trace_kernel(self,
                       rot: ti.types.ndarray(dtype=ti.f32, ndim=2),
@@ -331,57 +386,8 @@ class MjLidarTi:
                 rot[1, 0] * dir_local.x + rot[1, 1] * dir_local.y + rot[1, 2] * dir_local.z,
                 rot[2, 0] * dir_local.x + rot[2, 1] * dir_local.y + rot[2, 2] * dir_local.z
             ])
-            candidates, candidates_count = self.scene_lbvh.collect_intersecting_elements(o, ray_dir)
-            if candidates_count >= self.max_candidates-1:
-                ti.atomic_add(self._overflow[None], 1)
-
-            best_t = 1e10
-            for c in range(candidates_count):
-                t_hit = -1.0
-                if candidates[c] < self.ngeom:
-                    geom_id = candidates[c]
-                    geom_type = self.geom_types[geom_id]
-                    geom_center = self.geom_positions[geom_id]
-                    geom_size = self.geom_sizes[geom_id]
-                    geom_rot = self.geom_rotations[geom_id]
-
-                    if geom_type == -1:  # exclude
-                        pass
-                    elif geom_type == 0:  # PLANE
-                        t_hit = ray_plane_distance(o, ray_dir, geom_center, geom_size, geom_rot)
-                    elif geom_type == 2:  # SPHERE
-                        t_hit = ray_sphere_distance(o, ray_dir, geom_center, geom_size, geom_rot)
-                    elif geom_type == 3:  # CAPSULE
-                        t_hit = ray_capsule_distance(o, ray_dir, geom_center, geom_size, geom_rot)
-                    elif geom_type == 4:  # ELLIPSOID
-                        t_hit = ray_ellipsoid_distance(o, ray_dir, geom_center, geom_size, geom_rot)
-                    elif geom_type == 5:  # CYLINDER
-                        t_hit = ray_cylinder_distance(o, ray_dir, geom_center, geom_size, geom_rot)
-                    elif geom_type == 6:  # BOX
-                        t_hit = ray_box_distance(o, ray_dir, geom_center, geom_size, geom_rot)
-                    elif geom_type == 7:  # MESH
-                        pass
-                elif self.nface:
-                    tri_id = candidates[c] - self.ngeom
-                    v0 = self.tri_v0[tri_id]
-                    v1 = self.tri_v1[tri_id]
-                    v2 = self.tri_v2[tri_id]
-                    t_hit = ray_triangle_distance(o, ray_dir, v0, v1, v2)
-
-                if 0 <= t_hit and t_hit < best_t:
-                    best_t = t_hit
-
-            if ti.static(self.nhfield_face > 0):
-                h_candidates, h_candidates_count = self.hfield_lbvh.collect_intersecting_elements(o, ray_dir)
-                for c in range(h_candidates_count):
-                    tri_id = h_candidates[c]
-                    v0 = self.hfield_v0[tri_id]
-                    v1 = self.hfield_v1[tri_id]
-                    v2 = self.hfield_v2[tri_id]
-                    t_hit = ray_triangle_distance(o, ray_dir, v0, v1, v2)
-                    
-                    if 0 <= t_hit and t_hit < best_t:
-                        best_t = t_hit
+            
+            best_t = self._trace_single_ray(o, ray_dir)
 
             if best_t < self._cutoff:
                 distances[i] = best_t
@@ -391,3 +397,97 @@ class MjLidarTi:
             else:
                 distances[i] = 0.0
                 hit_pts[i] = ti.Vector([0.0, 0.0, 0.0])
+
+    def trace_rays_batch(self, sensor_pos, sensor_rot, theta, phi):
+        if isinstance(sensor_pos, np.ndarray):
+            sensor_pos_ti = ti.ndarray(ti.f32, sensor_pos.shape)
+            sensor_pos_ti.from_numpy(sensor_pos)
+        else:
+            sensor_pos_ti = sensor_pos
+        if isinstance(sensor_rot, np.ndarray):
+            sensor_rot_ti = ti.ndarray(ti.f32, sensor_rot.shape)
+            sensor_rot_ti.from_numpy(sensor_rot)
+        else:
+            sensor_rot_ti = sensor_rot
+        if isinstance(theta, np.ndarray):
+            theta_ti = ti.ndarray(ti.f32, theta.shape)
+            theta_ti.from_numpy(theta)
+        else:
+            theta_ti = theta
+        if isinstance(phi, np.ndarray):
+            phi_ti = ti.ndarray(ti.f32, phi.shape)
+            phi_ti.from_numpy(phi)
+        else:
+            phi_ti = phi
+        num_envs = sensor_pos.shape[0]
+        n_rays = theta.shape[0]
+        
+        # Allocate outputs
+        hit_pts = ti.ndarray(dtype=ti.f32, shape=(num_envs, n_rays, 3))
+        distances = ti.ndarray(dtype=ti.f32, shape=(num_envs, n_rays))
+        
+        self._trace_rays_batch_kernel(sensor_pos_ti, sensor_rot_ti, theta_ti, phi_ti, hit_pts, distances)
+        ti.sync()
+        return distances, hit_pts
+
+    @ti.kernel
+    def _trace_rays_batch_kernel(self, 
+                         sensor_pos: ti.types.ndarray(dtype=ti.f32, ndim=2),
+                         sensor_rot: ti.types.ndarray(dtype=ti.f32, ndim=3),
+                         theta_ti: ti.types.ndarray(dtype=ti.f32, ndim=1), 
+                         phi_ti: ti.types.ndarray(dtype=ti.f32, ndim=1),
+                         hit_pts: ti.types.ndarray(dtype=ti.f32, ndim=3),
+                         distances: ti.types.ndarray(dtype=ti.f32, ndim=2)):
+        """
+        Full ray tracing pipeline for a batch of environments: ray generation, transformation, and rendering.
+
+        Args:
+            sensor_pos: (B, 3) World position of sensor per env
+            sensor_rot: (B, 3, 3) World rotation matrix of sensor per env
+            theta_ti: (Nrays,) Ray horizontal angles
+            phi_ti: (Nrays,) Ray vertical angles
+            hit_pts: (B, Nrays, 3) Output hit points per env
+            distances: (B, Nrays) Output distances per env
+        """
+        num_envs = sensor_pos.shape[0]
+        n_rays = theta_ti.shape[0]
+
+        for ib, ir in ti.ndrange(num_envs, n_rays):
+            o = ti.Vector([sensor_pos[ib, 0], sensor_pos[ib, 1], sensor_pos[ib, 2]])
+            
+            r00 = sensor_rot[ib, 0, 0]
+            r01 = sensor_rot[ib, 0, 1]
+            r02 = sensor_rot[ib, 0, 2]
+            r10 = sensor_rot[ib, 1, 0]
+            r11 = sensor_rot[ib, 1, 1]
+            r12 = sensor_rot[ib, 1, 2]
+            r20 = sensor_rot[ib, 2, 0]
+            r21 = sensor_rot[ib, 2, 1]
+            r22 = sensor_rot[ib, 2, 2]
+            
+            t_angle = theta_ti[ir]
+            p_angle = phi_ti[ir]
+            cos_t = ti.cos(t_angle)
+            sin_t = ti.sin(t_angle)
+            cos_p = ti.cos(p_angle)
+            sin_p = ti.sin(p_angle)
+            dir_local = ti.Vector([cos_p * cos_t, cos_p * sin_t, sin_p])
+            
+            ray_dir = ti.Vector([
+                r00 * dir_local.x + r01 * dir_local.y + r02 * dir_local.z,
+                r10 * dir_local.x + r11 * dir_local.y + r12 * dir_local.z,
+                r20 * dir_local.x + r21 * dir_local.y + r22 * dir_local.z
+            ])
+            
+            best_t = self._trace_single_ray(o, ray_dir)
+            
+            if best_t < self._cutoff:
+                distances[ib, ir] = best_t
+                hit_pts[ib, ir, 0] = best_t * dir_local.x
+                hit_pts[ib, ir, 1] = best_t * dir_local.y
+                hit_pts[ib, ir, 2] = best_t * dir_local.z
+            else:
+                distances[ib, ir] = 0.0
+                hit_pts[ib, ir, 0] = 0.0
+                hit_pts[ib, ir, 1] = 0.0
+                hit_pts[ib, ir, 2] = 0.0

@@ -1,5 +1,4 @@
 <mujoco model="stairs terrain scene">
-  <statistic center="0 0 0.1" extent="0.8" meansize="0.04" />
 
   <visual>
     <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0" />
@@ -11,13 +10,14 @@
   </visual>
 
   <asset>
-    <hfield name="hfield" file="assets/heightmap_stairs.png" size="22.5 22.5 3 4" />
+    <!-- <hfield name="hfield" file="assets/heightmap_stairs_3x3.png" size="28 28 4 1" /> -->
+    <hfield name="hfield" file="assets/heightmap_stairs_5x5.png" size="28 28 4 1" />
   </asset>
 
   <worldbody>
     <light pos="0 0 1.5" dir="0 0 -1" directional="true" />
-    <geom name="floor" pos="0 0 -1.89" size="1 1 1" type="hfield" hfield="hfield"/>
-    <site name="static_site" pos="6 2 0"/>
+    <geom name="floor" pos="0 0 -1.6" type="hfield" hfield="hfield"/>
+    <site name="static_site" pos="0 0 2"/>
   </worldbody>
 
 </mujoco>

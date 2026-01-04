@@ -14,7 +14,7 @@ parser.add_argument('--save', action='store_true', help='Save point clouds to .p
 args = parser.parse_args()
 
 # Load model
-mjcf_file = epath.Path(__file__).parent.parent / "models" / "scene_primitive.xml"
+mjcf_file = epath.Path(__file__).parent.parent.parent / "models" / "scene_primitive.xml"
 mj_model = mujoco.MjModel.from_xml_path(mjcf_file.as_posix())
 mj_data = mujoco.MjData(mj_model)
 mujoco.mj_step(mj_model, mj_data)

@@ -16,7 +16,7 @@ parser.add_argument('--save', action='store_true', help='Save point clouds to .p
 args = parser.parse_args()
 
 # Load model
-model_path = pathlib.Path(__file__).parent.parent / "models" / "stairs_terrain.xml"
+model_path = pathlib.Path(__file__).parent.parent.parent / "models" / "stairs_terrain.xml"
 print(f"Loading model from: {model_path}")
 mj_model = mujoco.MjModel.from_xml_path(model_path.as_posix())
 mj_data = mujoco.MjData(mj_model)
