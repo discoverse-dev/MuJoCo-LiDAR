@@ -18,8 +18,8 @@ A high-performance LiDAR simulation tool based on MuJoCo, supporting CPU, Taichi
 
 - **Multi-Backend Support**:
   - **CPU Backend**: Based on MuJoCo's native `mj_multiRay` function, no GPU required, simple and easy to use.
-  - **Taichi Backend**: Utilizes Taichi for efficient GPU parallel computing, supports mesh scenes with millions of faces.
-  - **JAX Backend**: Utilizes JAX for GPU parallel computing and MJX integration.
+  - **Taichi Backend**: Utilizes Taichi for efficient GPU parallel computing, supports mesh scenes with millions of faces and height fields.
+  - **JAX Backend**: Utilizes JAX for GPU parallel computing and MJX integration, supports Height Field (Hfield).
 - **High Performance**: GPU-accelerated backends can generate 1 million+ rays in milliseconds.
 - **Dynamic Scenes**: Supports real-time BVH construction (Taichi backend) for dynamic scenes.
 - **Multiple LiDAR Models**: Supports various scanning patterns:
@@ -78,13 +78,13 @@ MuJoCo-LiDAR provides usage approaches and backend options:
    - Performance: Uses MuJoCo's native `mj_multiRay`.
 
 2. **Taichi Backend**:
-   - Advantages: High performance, supports complex Mesh scenes.
-   - Use Cases: Complex scenes, large number of rays, Mesh geometries.
+   - Advantages: High performance, supports complex Mesh and Hfield scenes.
+   - Use Cases: Complex scenes, large number of rays, Mesh or Hfield geometries.
    - Performance: GPU parallel computing with BVH acceleration.
 
 3. **JAX Backend**:
    - Advantages: High performance, supports **Batch Simulation** (multiple environments in parallel).
-   - Use Cases: Research involving JAX/MJX, large-scale parallel simulation, simple geometric scenes (Primitives).
+   - Use Cases: Research involving JAX/MJX, large-scale parallel simulation, supports Primitives and Height Fields (Hfield).
    - Note: Does not support Mesh geometries currently.
 
 ### Approach: Using Wrapper (Recommended)
@@ -599,6 +599,7 @@ rays_theta, rays_phi = livox_gen.sample_ray_angles()
 - Use geomgroup to organize the scene
 - Simplify geometry shapes of unimportant objects
 - For mesh models, consider reducing face count
+- When using height fields, it is recommended to use Taichi backend (rather than JAX backend) for better performance
 
 ## 📄 License
 

@@ -32,7 +32,7 @@ print(f"Number of rays: {len(theta)}")
 np.random.seed(0)
 rnd_args = np.random.randint(0, len(theta), size=30)
 
-backends = ['cpu', 'jax']
+backends = ['cpu', 'taichi', 'jax']
 results = {}
 
 for backend in backends:
@@ -50,7 +50,7 @@ for backend in backends:
         # Timing
         print("Running benchmark...")
         start = time.time()
-        num_runs = 5
+        num_runs = 10 if backend != 'cpu' else 2
         for _ in range(num_runs):
             ranges = lidar.trace_rays(mj_data, theta, phi)
             if backend == 'jax':
@@ -69,7 +69,7 @@ for backend in backends:
         ranges_sorted = np.sort(ranges_np)
         results[backend] = ranges_sorted[rnd_args]
         
-        if 1 or args.save:
+        if args.save:
             # Compute point cloud (x, y, z)
             r = ranges_np
             x = r * np.cos(phi) * np.cos(theta)

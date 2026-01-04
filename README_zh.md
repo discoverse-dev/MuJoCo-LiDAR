@@ -19,8 +19,8 @@
 
 - **多后端支持**：
   - **CPU后端**：基于MuJoCo原生的`mj_multiRay`函数，无需GPU，简单易用
-  - **Taichi后端**：利用Taichi实现GPU高效并行计算，性能更强，支持百万面片的mesh场景
-  - **JAX后端**：利用JAX实现GPU并行计算，支持MJX集成
+  - **Taichi后端**：利用Taichi实现GPU高效并行计算，性能更强，支持百万面片的mesh场景和高度场
+  - **JAX后端**：利用JAX实现GPU并行计算，支持MJX集成，支持高度场(Hfield)
 - **高性能**：GPU加速后端能在毫秒级生成100万+射线
 - **动态场景**：支持动态场景实时bvh构建，实现快速LiDAR扫描
 - **多种激光雷达模型**：支持多种扫描模式：
@@ -28,7 +28,7 @@
   - Velodyne HDL-64E、VLP-32C
   - Ouster OS-128
   - 可自定义网格扫描模式
-- **精确的物理模拟**：对所有MuJoCo几何体类型进行射线追踪：盒体、球体、椭球体、圆柱体、胶囊体、平面和mesh网格
+- **精确的物理模拟**：对所有MuJoCo几何体类型进行射线追踪：盒体、球体、椭球体、圆柱体、胶囊体、平面、高度场和mesh网格
 - **灵活的API**：提供统一的Wrapper接口和底层Core接口两种使用方式
 - **ROS集成**：提供即用型ROS1和ROS2示例
 
@@ -43,7 +43,7 @@
 
 **可选后端依赖：**
 - **Taichi**: `taichi >= 1.6.0`, `tibvh`
-- **JAX**: `jax`, `jaxlib`
+- **JAX**: `jax[cuda12]`
 
 ### 快速安装
 
@@ -63,11 +63,13 @@ pip install -e ".[jax]"
 
 # 验证 JAX 安装
 python -c "import jax; print(jax.default_backend())"
+# 应该输出 "gpu"
 ```
 
 **注意**：
 - CPU后端不需要安装Taichi和TIBVH，开箱即用
 - Taichi后端需要配置好cuda的nvidia显卡或其他Taichi支持的GPU
+- 目前只有Jax后端支持batch环境
 
 ## 📚 使用示例
 
@@ -88,13 +90,13 @@ MuJoCo-LiDAR 提供两种使用方式和两种后端选择：
    - 性能：使用MuJoCo原生 `mj_multiRay` 函数
 
 2. **Taichi后端**：
-   - 优点：高性能，适合大规模射线追踪，支持复杂Mesh场景
-   - 适用场景：复杂场景、大量射线（>10000）、需要实时性能、复杂mesh文件
+   - 优点：高性能，适合大规模射线追踪，支持复杂Mesh和高度场场景
+   - 适用场景：复杂场景、大量射线（>10000）、需要实时性能、复杂mesh或高度场文件
    - 性能：GPU并行计算，毫秒级处理100万+射线
 
 3. **JAX后端**：
    - 优点：高性能，支持**批量仿真**（多环境并行）
-   - 适用场景：涉及JAX/MJX的研究，大规模并行仿真，简单几何场景（Primitives）
+   - 适用场景：涉及JAX/MJX的研究，大规模并行仿真，支持基础几何体（Primitives）和高度场（Hfield）
    - 注意：目前不支持Mesh几何体
 
 ### 方式一：使用Wrapper（推荐，简单易用）
@@ -607,7 +609,8 @@ rays_theta, rays_phi = livox_gen.sample_ray_angles()
 - 移除视野外的几何体
 - 使用geomgroup组织场景
 - 简化不重要物体的几何形状
-- 对于网格模型，考虑简化面数
+- 对于高度场和网格模型，考虑简化面数
+- 使用高度场时候，推荐使用Taichi后端(而不是JAX后端)以获得更好性能
 
 ## 📄 许可证
 

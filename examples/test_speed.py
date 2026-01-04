@@ -43,7 +43,7 @@ for backend in backends:
         
         # Timing
         start = time.time()
-        num_runs = 1 #5
+        num_runs = 10 if backend != 'cpu' else 2
         for _ in range(num_runs):
             ranges = lidar.trace_rays(mj_data, theta, phi)
             if backend == 'jax':

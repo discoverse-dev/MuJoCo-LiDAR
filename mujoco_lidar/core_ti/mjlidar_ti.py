@@ -105,6 +105,103 @@ class MjLidarTi:
         self.tri_v1 = ti.Vector.field(3, dtype=ti.f32, shape=max(self.nface, 1))
         self.tri_v2 = ti.Vector.field(3, dtype=ti.f32, shape=max(self.nface, 1))
 
+        # Hfield processing
+        self.nhfield_face = 0
+        hfield_tri_v0 = []
+        hfield_tri_v1 = []
+        hfield_tri_v2 = []
+        
+        hfield_geoms = np.where(mj_model.geom_type == 1)[0] # mjGEOM_HFIELD = 1
+        
+        for gid in hfield_geoms:
+            hid = mj_model.geom_dataid[gid]
+            nrow = mj_model.hfield_nrow[hid]
+            ncol = mj_model.hfield_ncol[hid]
+            adr = mj_model.hfield_adr[hid]
+            data = mj_model.hfield_data[adr:adr+nrow*ncol].reshape(nrow, ncol)
+            size = mj_model.hfield_size[hid] # rx, ry, ez, bz
+            
+            rx, ry, ez = size[0], size[1], size[2]
+            
+            # Create grid
+            x = np.linspace(-rx, rx, ncol)
+            y = np.linspace(-ry, ry, nrow)
+            xx, yy = np.meshgrid(x, y) # xx is (nrow, ncol)
+            zz = data * ez
+            
+            # Vertices in local frame
+            # shape (nrow, ncol, 3)
+            local_verts = np.stack([xx, yy, zz], axis=-1)
+            
+            # Transform to world frame
+            pos = mj_model.geom_pos[gid]
+            quat = mj_model.geom_quat[gid]
+            mat = np.zeros(9)
+            mujoco.mju_quat2Mat(mat, quat)
+            mat = mat.reshape(3, 3)
+            
+            # (N, 3) = (N, 3) @ T + p
+            # Reshape to (N, 3)
+            flat_verts = local_verts.reshape(-1, 3)
+            world_verts = flat_verts @ mat.T + pos
+            world_verts = world_verts.reshape(nrow, ncol, 3)
+            
+            # Generate triangles
+            # v00: [:-1, :-1], v10: [:-1, 1:], v01: [1:, :-1], v11: [1:, 1:]
+            # Note: meshgrid default indexing='xy' means x varies on columns, y on rows.
+            # rows are y, cols are x.
+            
+            v00 = world_verts[:-1, :-1]
+            v10 = world_verts[:-1, 1:]
+            v01 = world_verts[1:, :-1]
+            v11 = world_verts[1:, 1:]
+            
+            # Tri 1: v00, v10, v11
+            # Tri 2: v00, v11, v01
+            
+            # Flatten
+            t1_v0 = v00.reshape(-1, 3)
+            t1_v1 = v10.reshape(-1, 3)
+            t1_v2 = v11.reshape(-1, 3)
+            
+            t2_v0 = v00.reshape(-1, 3)
+            t2_v1 = v11.reshape(-1, 3)
+            t2_v2 = v01.reshape(-1, 3)
+            
+            hfield_tri_v0.append(t1_v0)
+            hfield_tri_v0.append(t2_v0)
+            hfield_tri_v1.append(t1_v1)
+            hfield_tri_v1.append(t2_v1)
+            hfield_tri_v2.append(t1_v2)
+            hfield_tri_v2.append(t2_v2)
+            
+        if hfield_tri_v0:
+            all_v0 = np.concatenate(hfield_tri_v0, axis=0)
+            all_v1 = np.concatenate(hfield_tri_v1, axis=0)
+            all_v2 = np.concatenate(hfield_tri_v2, axis=0)
+            self.nhfield_face = all_v0.shape[0]
+            
+            self.hfield_v0 = ti.Vector.field(3, dtype=ti.f32, shape=self.nhfield_face)
+            self.hfield_v1 = ti.Vector.field(3, dtype=ti.f32, shape=self.nhfield_face)
+            self.hfield_v2 = ti.Vector.field(3, dtype=ti.f32, shape=self.nhfield_face)
+            
+            self.hfield_v0.from_numpy(all_v0.astype(np.float32))
+            self.hfield_v1.from_numpy(all_v1.astype(np.float32))
+            self.hfield_v2.from_numpy(all_v2.astype(np.float32))
+        else:
+            self.nhfield_face = 0
+            self.hfield_v0 = ti.Vector.field(3, dtype=ti.f32, shape=1)
+            self.hfield_v1 = ti.Vector.field(3, dtype=ti.f32, shape=1)
+            self.hfield_v2 = ti.Vector.field(3, dtype=ti.f32, shape=1)
+
+        # Build Hfield BVH
+        self.hfield_aabb_manager = AABB(max_n_aabbs=max(self.nhfield_face, 1))
+        self.hfield_lbvh = LBVH(self.hfield_aabb_manager, max_candidates=self.max_candidates, profiling=False)
+        
+        if self.nhfield_face > 0:
+            self._update_hfield_aabb()
+            self.hfield_lbvh.build()
+
         # build scene manager
         self.scene_aabb_manager = AABB(max_n_aabbs=self.ngeom+self.nface)
         self.scene_lbvh = LBVH(self.scene_aabb_manager, max_candidates=self.max_candidates, profiling=False)
@@ -123,6 +220,7 @@ class MjLidarTi:
         if self.nface:
             self._update_face_pose()
             self._update_face_aabb()
+        
         ti.sync()
         self.scene_lbvh.build()
 
@@ -161,6 +259,22 @@ class MjLidarTi:
             ])
             self.scene_aabb_manager.aabbs[self.ngeom + i].min = aabb_min
             self.scene_aabb_manager.aabbs[self.ngeom + i].max = aabb_max
+
+    @ti.kernel
+    def _update_hfield_aabb(self):
+        for i in ti.ndrange(self.nhfield_face):
+            aabb_min = ti.Vector([
+                ti.min(self.hfield_v0[i][0], self.hfield_v1[i][0], self.hfield_v2[i][0]),
+                ti.min(self.hfield_v0[i][1], self.hfield_v1[i][1], self.hfield_v2[i][1]),
+                ti.min(self.hfield_v0[i][2], self.hfield_v1[i][2], self.hfield_v2[i][2]),
+            ])
+            aabb_max = ti.Vector([
+                ti.max(self.hfield_v0[i][0], self.hfield_v1[i][0], self.hfield_v2[i][0]),
+                ti.max(self.hfield_v0[i][1], self.hfield_v1[i][1], self.hfield_v2[i][1]),
+                ti.max(self.hfield_v0[i][2], self.hfield_v1[i][2], self.hfield_v2[i][2]),
+            ])
+            self.hfield_aabb_manager.aabbs[i].min = aabb_min
+            self.hfield_aabb_manager.aabbs[i].max = aabb_max
 
     def trace_rays(self, pose_4x4: np.ndarray, theta_ti: ti.ndarray, phi_ti: ti.ndarray):
         if theta_ti.shape[0] != phi_ti.shape[0]:
@@ -256,6 +370,18 @@ class MjLidarTi:
 
                 if 0 <= t_hit and t_hit < best_t:
                     best_t = t_hit
+
+            if ti.static(self.nhfield_face > 0):
+                h_candidates, h_candidates_count = self.hfield_lbvh.collect_intersecting_elements(o, ray_dir)
+                for c in range(h_candidates_count):
+                    tri_id = h_candidates[c]
+                    v0 = self.hfield_v0[tri_id]
+                    v1 = self.hfield_v1[tri_id]
+                    v2 = self.hfield_v2[tri_id]
+                    t_hit = ray_triangle_distance(o, ray_dir, v0, v1, v2)
+                    
+                    if 0 <= t_hit and t_hit < best_t:
+                        best_t = t_hit
 
             if best_t < self._cutoff:
                 distances[i] = best_t

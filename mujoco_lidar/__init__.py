@@ -3,7 +3,7 @@
 from mujoco_lidar.lidar_wrapper import MjLidarWrapper
 from typing import Any
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 __all__ = [
     "MjLidarWrapper",
