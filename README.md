@@ -42,7 +42,7 @@ A high-performance LiDAR simulation tool based on MuJoCo, supporting CPU, Taichi
 
 **Optional Backend Dependencies:**
 - **Taichi**: `taichi >= 1.6.0`, `tibvh`
-- **JAX**: `jax`, `jaxlib`
+- **JAX**: `jax[cuda12]`
 
 ### Quick Installation
 
@@ -62,7 +62,13 @@ pip install -e ".[jax]"
 
 # Verify JAX installation
 python -c "import jax; print(jax.default_backend())"
+# should print "gpu"
 ```
+
+**Notice**:
+- CPU backend does not require Taichi and TIBVH, works out-of-the-box.
+- Taichi backend requires a properly configured NVIDIA GPU with CUDA or other Taichi-supported GPUs.
+- Currently, only JAX backend supports batch environments.
 
 ## 📚 Usage Examples
 
