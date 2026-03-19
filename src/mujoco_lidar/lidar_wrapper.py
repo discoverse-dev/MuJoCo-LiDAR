@@ -76,7 +76,7 @@ class MjLidarWrapper:
         except ImportError as e:
             raise ImportError(
                 f"Failed to import Taichi backend dependencies. "
-                f"Please install taichi: uv add \"mujoco-lidar[taichi]\"\n"
+                f'Please install taichi: uv add "mujoco-lidar[taichi]"\n'
                 f"Error: {e}"
             ) from e
 
