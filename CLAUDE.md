@@ -12,8 +12,9 @@
 - No defensive code for impossible scenarios
 - No abstractions for single-use cases
 - No error handling for internal code paths
+- Prefer testability over debuggability
 
-Performance matters: this is GPU-intensive research code. Prefer testability over debuggability.
+Performance matters: this is GPU-intensive research code.
 
 ## Git
 
