@@ -1,38 +1,22 @@
 # Development Guide
 
-## Project Structure
+## Setup
 
-```
-MuJoCo-LiDAR/
-├── .github/
-│   ├── workflows/          # CI/CD pipelines
-│   └── ISSUE_TEMPLATE/     # Issue templates
-├── benchmarks/             # Performance benchmarks
-│   ├── benchmark_core.py   # Core benchmarks
-│   ├── check_regression.py # Regression detection
-│   └── baselines/          # Performance baselines
-├── docs/                   # Documentation
-├── examples/               # Usage examples
-├── mujoco_lidar/          # Source code
-│   ├── core_cpu/          # CPU backend
-│   ├── core_taichi/       # Taichi backend
-│   └── core_jax/          # JAX backend
-├── tests/                 # Test suite
-│   ├── conftest.py        # Pytest fixtures
-│   ├── test_core.py       # Core tests
-│   ├── test_wrapper.py    # Wrapper tests
-│   ├── test_raytracing.py # Ray tracing tests
-│   └── test_scan_patterns.py # Scan pattern tests
-└── pyproject.toml         # Project config
+```bash
+git clone https://github.com/TATP-233/MuJoCo-LiDAR.git
+cd MuJoCo-LiDAR
+
+uv sync --extra dev                              # CPU only
+uv sync --extra dev --extra taichi               # with Taichi
+uv sync --extra dev --extra taichi --extra jax   # all backends
 ```
 
 ## Running Tests
 
 ```bash
-# All tests
 make test
 
-# Specific test file
+# Specific file
 uv run pytest tests/test_core.py -v
 
 # With coverage
@@ -42,22 +26,54 @@ uv run pytest --cov=mujoco_lidar
 ## Running Benchmarks
 
 ```bash
-# Run benchmarks
-uv run python benchmarks/benchmark_core.py
+make benchmark
 
-# Check for performance regression
+# Check regression against baseline
 uv run python benchmarks/check_regression.py
 ```
 
 ## Code Quality
 
 ```bash
-# Format code
-make format
+make format   # Format code
+make lint     # Check linting
+make check    # lint + test
+```
 
-# Check linting
+## Workflow
+
+```bash
+# 1. Create feature branch
+git checkout -b feat/your-feature
+
+# 2. Develop and test
+make test
+
+# 3. Lint
 make lint
 
-# Run all checks
-make check
+# 4. Commit (Conventional Commits)
+git commit -m "feat: add new feature"
+
+# 5. Push and open PR
+git push origin feat/your-feature
 ```
+
+## Commit Convention
+
+- `feat:` new feature
+- `fix:` bug fix
+- `docs:` documentation
+- `style:` formatting
+- `refactor:` refactoring
+- `test:` tests
+- `chore:` build/tooling
+
+**Never commit directly to main.**
+
+## Adding a New Backend
+
+1. Create `src/mujoco_lidar/core_xxx/` directory
+2. Implement `update(mj_data)`, `trace_rays(pose, theta, phi)`, `get_hit_points()`, `get_distances()`
+3. Register in `lidar_wrapper.py`
+4. Add tests in `tests/`
