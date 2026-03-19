@@ -168,10 +168,6 @@ valid_mask = ranges > 0
 valid_points = hit_points[valid_mask]
 ```
 
-    }
-)
-```
-
 ---
 
 ## 运行示例

@@ -24,6 +24,8 @@ dependencies = [
     "pynput",
     "matplotlib",
     "zhplot",
+    "onnxruntime==1.19.2",
+    "etils[epath]>=1.13.0",
 ]
 
 [project.optional-dependencies]

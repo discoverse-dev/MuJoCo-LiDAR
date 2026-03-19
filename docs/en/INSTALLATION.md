@@ -37,6 +37,8 @@ cd MuJoCo-LiDAR
 
 # Install with dev dependencies
 uv sync --extra dev
+uv sync --extra dev --extra taichi # With Taichi backend
+uv sync --extra dev --extra jax    # With JAX backend
 
 # Run tests
 uv run pytest tests/
