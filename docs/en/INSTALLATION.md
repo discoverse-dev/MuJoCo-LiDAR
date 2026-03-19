@@ -3,7 +3,7 @@
 ## System Requirements
 
 **Basic Dependencies:**
-- Python >= 3.10
+- Python >= 3.10 (3.10 – 3.13 supported)
 - MuJoCo >= 3.2.0
 - NumPy >= 1.20.0
 

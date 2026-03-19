@@ -160,7 +160,7 @@ All commands must be run from the **project root directory** (`MuJoCo-LiDAR/`).
 ```bash
 # Taichi backend + example dependencies
 uv sync --extra dev --extra taichi
-uv add "onnxruntime==1.19.2" "etils[epath]"
+uv sync --extra examples
 ```
 
 ### Unitree Go2

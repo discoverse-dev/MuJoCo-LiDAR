@@ -24,8 +24,6 @@ dependencies = [
     "pynput",
     "matplotlib",
     "zhplot",
-    "onnxruntime==1.19.2",
-    "etils[epath]>=1.13.0",
 ]
 
 [project.optional-dependencies]
@@ -42,6 +40,10 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "ruff>=0.3.0",
+]
+examples = [
+    "onnxruntime>=1.19.2",
+    "etils[epath]>=1.13.0",
 ]
 
 [project.urls]

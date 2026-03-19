@@ -20,11 +20,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.10', '3.11', '3.12']
+        python-version: ['3.10', '3.11', '3.12', '3.13']
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
-      - run: uv sync --python ${{ matrix.python-version }}
+      - run: uv sync --python ${{ matrix.python-version }} --extra dev
       - run: uv run pytest tests/test_core.py tests/test_cpu_backend.py tests/test_scan_gen.py -v
 
   test-backends:
