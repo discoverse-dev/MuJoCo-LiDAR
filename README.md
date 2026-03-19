@@ -49,7 +49,10 @@ uv add "mujoco-lidar[jax]"
 ```bash
 git clone https://github.com/TATP-233/MuJoCo-LiDAR.git
 cd MuJoCo-LiDAR
-uv sync --extra dev
+
+uv sync --extra dev                        # CPU only
+uv sync --extra dev --extra taichi         # with Taichi backend
+uv sync --extra dev --extra taichi --extra jax  # all backends
 ```
 
 See [Installation Guide](docs/en/INSTALLATION.md) for details.

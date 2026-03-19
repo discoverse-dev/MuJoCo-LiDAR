@@ -1,6 +1,5 @@
 # MuJoCo-LiDAR：基于 MuJoCo 的高性能激光雷达仿真
 
-[![CI](https://github.com/TATP-233/MuJoCo-LiDAR/actions/workflows/ci.yml/badge.svg)](https://github.com/TATP-233/MuJoCo-LiDAR/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/mujoco-lidar)](https://pypi.org/project/mujoco-lidar/)
 [![Python](https://img.shields.io/pypi/pyversions/mujoco-lidar)](https://pypi.org/project/mujoco-lidar/)
 
@@ -64,7 +63,10 @@ uv add "mujoco-lidar[jax]"
 ```bash
 git clone https://github.com/TATP-233/MuJoCo-LiDAR.git
 cd MuJoCo-LiDAR
-uv sync --extra dev
+
+uv sync --extra dev                              # 仅 CPU 后端
+uv sync --extra dev --extra taichi               # 含 Taichi 后端
+uv sync --extra dev --extra taichi --extra jax   # 全部后端
 ```
 
 详见 [安装指南](docs/zh_CN/INSTALLATION.md)。
