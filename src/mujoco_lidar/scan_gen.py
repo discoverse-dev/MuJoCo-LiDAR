@@ -124,11 +124,6 @@ def generate_grid_scan_pattern(
     # 展平网格为一维数组
     ray_phi = phi_grid.flatten()
     ray_theta = theta_grid.flatten()
-
-    # 打印扫描范围信息
-    print(
-        f"扫描模式：phi范围[{ray_phi.min():.2f}, {ray_phi.max():.2f}], theta范围[{ray_theta.min():.2f}, {ray_theta.max():.2f}]"
-    )
     return ray_theta, ray_phi
 
 

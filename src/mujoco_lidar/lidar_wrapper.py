@@ -6,62 +6,14 @@ import numpy as np
 
 class MjLidarWrapper:
     """
-    MuJoCo LiDAR wrapper that supports CPU, Taichi, and JAX backends.
+    MuJoCo LiDAR wrapper supporting CPU, Taichi, and JAX backends.
 
     Args:
-        mj_model (mujoco.MjModel): MuJoCo model object
-        site_name (str): Name of the LiDAR site in the MuJoCo model
-        backend (str): Computation backend, 'cpu', 'taichi', or 'jax'. Default: 'taichi'
-        cutoff_dist (float): Maximum ray tracing distance in meters. Default: 100.0
-        args (dict): Additional backend-specific arguments. Default: {}
-
-            CPU Backend Arguments:
-                geomgroup (np.ndarray | None): Geometry group filter (0-5, or None for all). Default: None
-                    - None: Detect all geometries
-                    - geomgroup is an array of length mjNGROUP, where 1 means the group should be included. Pass geomgroup=None to skip group exclusion.
-                bodyexclude (int): Body ID to exclude from detection. Default: -1
-                    - -1: Don't exclude any body
-                    - >= 0: Exclude all geometries of the specified body
-
-            Taichi Backend Arguments:
-                max_candidates (int): Maximum number of BVH candidate nodes. Default: 64
-                    - Larger values: More accurate but slower
-                    - Smaller values: Faster but may miss collisions
-                    - Recommended: 16-32 (simple), 32-64 (medium), 64-128 (complex)
-                ti_init_args (dict): Arguments passed to taichi.init(). Default: {}
-                    - device_memory_GB (float): GPU memory limit in GB
-                    - debug (bool): Enable debug mode
-                    - log_level (str): 'trace', 'debug', 'info', 'warn', 'error'
-
-            JAX Backend Arguments:
-                geom_ids (list | None): List of geometry IDs to include. Default: None (all)
-
-    Examples:
-        >>> # CPU backend with body exclusion
-        >>> lidar = MjLidarWrapper(
-        ...     mj_model=model,
-        ...     site_name="lidar_site",
-        ...     backend="cpu",
-        ...     cutoff_dist=50.0,
-        ...     args={
-        ...         'bodyexclude': robot_body_id,
-        ...         'geomgroup': np.array([1, 1, 1, 0, 0, 0], np.dtype=np.uint8)
-        ...     }
-        ... )
-
-        >>> # GPU backend for complex scenes
-        >>> lidar = MjLidarWrapper(
-        ...     mj_model=model,
-        ...     site_name="lidar_site",
-        ...     backend="gpu",
-        ...     cutoff_dist=100.0,
-        ...     args={
-        ...         'bodyexclude': robot_body_id,
-        ...         'geomgroup': np.array([1, 1, 1, 0, 0, 0], np.dtype=np.uint8),
-        ...         'max_candidates': 64,
-        ...         'ti_init_args': {'device_memory_GB': 4.0}
-        ...     }
-        ... )
+        mj_model: MuJoCo model object
+        site_name: Name of the LiDAR site in the model
+        backend: 'cpu', 'taichi', or 'jax' (default: 'taichi')
+        cutoff_dist: Maximum ray distance in meters (default: 100.0)
+        args: Backend-specific arguments (see docs/en/API.md)
     """
 
     def __init__(
@@ -124,7 +76,7 @@ class MjLidarWrapper:
         except ImportError as e:
             raise ImportError(
                 f"Failed to import Taichi backend dependencies. "
-                f"Please install taichi: pip install taichi\n"
+                f"Please install taichi: uv add \"mujoco-lidar[taichi]\"\n"
                 f"Error: {e}"
             ) from e
 
