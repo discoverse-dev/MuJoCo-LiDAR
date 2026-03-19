@@ -153,30 +153,26 @@ lidar = MjLidarWrapper(
 
 ## Running Examples
 
-### Basic Examples
+All commands must be run from the **project root directory** (`MuJoCo-LiDAR/`).
+
+### Install Dependencies
 
 ```bash
-# CPU backend (no GPU required)
-uv run python examples/example_native.py
-
-# Taichi backend
-uv run python examples/example_taichi.py
+# Taichi backend + example dependencies
+uv sync --extra dev --extra taichi
+uv add "onnxruntime==1.19.2" "etils[epath]"
 ```
 
 ### Unitree Go2
 
-Requires: Taichi backend, `onnxruntime`, `etils`
-
 ```bash
-uv add "mujoco-lidar[taichi]" onnxruntime etils
-
-# Default (Livox mid360, Taichi backend)
+# Default: Livox mid360, Taichi backend, walking
 uv run python examples/unitree_go2.py
 
-# With Airy-96 LiDAR
+# Airy-96 LiDAR
 uv run python examples/unitree_go2.py --lidar airy
 
-# CPU backend (slower)
+# CPU backend (no GPU required)
 uv run python examples/unitree_go2.py --backend cpu
 
 # Static pose (no walking)
@@ -185,27 +181,18 @@ uv run python examples/unitree_go2.py --stand
 
 ### Unitree G1
 
-Requires: Taichi backend, `onnxruntime`, `etils`
-
 ```bash
-uv add "mujoco-lidar[taichi]" onnxruntime etils
-
-# Default (Livox mid360)
+# Default: Livox mid360, Taichi backend
 uv run python examples/unitree_g1.py
 
-# With Airy-96 LiDAR
+# Airy-96 LiDAR
 uv run python examples/unitree_g1.py --lidar airy
 ```
 
 ### ROS2 Integration
 
 ```bash
-# Visualize point cloud in RViz2
 uv run python examples/lidar_vis_ros2.py
-
-# Go2 with ROS2
 uv run python examples/unitree_go2_ros2.py
-
-# G1 with ROS2
 uv run python examples/unitree_g1_ros2.py
 ```
