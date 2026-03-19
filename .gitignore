@@ -10,3 +10,10 @@ hfield_ray/
 test.ipynb
 
 dist/
+
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov/
+
+benchmarks/baselines/

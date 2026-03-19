@@ -1,12 +1,13 @@
 import os
-from etils import epath
-import mujoco
+
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+import mujoco
+from etils import epath
 
 from mujoco_lidar import MjLidarWrapper, scan_gen
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 
 def main():
     # 从文件加载MuJoCo模型
@@ -23,8 +24,10 @@ def main():
     print("exclude body id:", exclode_body_id)
 
     # 创建激光雷达传感器，使用GPU后端
-    lidar_sensor = MjLidarWrapper(mj_model, site_name="lidar_site", backend="taichi", args={"bodyexclude": exclode_body_id})
-    
+    lidar_sensor = MjLidarWrapper(
+        mj_model, site_name="lidar_site", backend="taichi", args={"bodyexclude": exclode_body_id}
+    )
+
     # 执行一次ray casting
     lidar_sensor.trace_rays(mj_data, rays_theta, rays_phi)
     points = lidar_sensor.get_hit_points()
@@ -39,23 +42,25 @@ def main():
 
     # 使用matplotlib可视化点云
     fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection='3d')
+    ax = fig.add_subplot(111, projection="3d")
     ax.set_box_aspect([1, 1, 0.3])  # 设置三个轴的比例
-    
+
     # 绘制点云，使用z坐标作为颜色映射
-    scatter = ax.scatter(points[:, 0], points[:, 1], points[:, 2], 
-                        c=points[:, 2], cmap='viridis', s=3)
-    
-    ax.set_title('LiDAR Point Cloud (Single Ray Casting - GPU Backend)')
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    
+    scatter = ax.scatter(
+        points[:, 0], points[:, 1], points[:, 2], c=points[:, 2], cmap="viridis", s=3
+    )
+
+    ax.set_title("LiDAR Point Cloud (Single Ray Casting - GPU Backend)")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+
     # 添加颜色条
-    plt.colorbar(scatter, ax=ax, label='Z coordinate')
-    
+    plt.colorbar(scatter, ax=ax, label="Z coordinate")
+
     plt.show()
     print("\nVisualization completed.")
+
 
 if __name__ == "__main__":
     main()

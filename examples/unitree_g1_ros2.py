@@ -1,25 +1,20 @@
+import argparse
 import os
-import subprocess
 import signal
-from etils import epath
+import subprocess
+import traceback
+
 import mujoco
 import mujoco.viewer as viewer
-import argparse
-import traceback
 import numpy as np
-from scipy.spatial.transform import Rotation
-import onnxruntime as rt
-
 import rclpy
 import tf2_ros
-from rclpy.node import Node
 from geometry_msgs.msg import TransformStamped
+from rclpy.node import Node
+from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import PointCloud2, PointField
+from unitree_g1 import _JOINT_NUM, _MJCF_PATH, _ONNX_DIR, OnnxController
 
-from mujoco_lidar import scan_gen
-from mujoco_lidar import MjLidarWrapper
-
-from unitree_g1 import OnnxController, _ONNX_DIR, _MJCF_PATH, _JOINT_NUM
 
 class OnnxControllerRos2(OnnxController, Node):
     """ONNX controller for the G-1 robot."""
@@ -43,24 +38,24 @@ class OnnxControllerRos2(OnnxController, Node):
             action_scale,
             lidar_type,
         )
-        Node.__init__(self, 'g1_node')
+        Node.__init__(self, "g1_node")
 
         self.init_topic_publisher()
 
     def init_topic_publisher(self):
-        self.last_pub_time_tf = -1.
+        self.last_pub_time_tf = -1.0
         self.pub_staticc_tf_once = False
 
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
         self.static_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
 
-        self.lidar_puber = self.create_publisher(PointCloud2, '/lidar_points', 1)
-        self.last_pub_time_lidar = -1.
+        self.lidar_puber = self.create_publisher(PointCloud2, "/lidar_points", 1)
+        self.last_pub_time_lidar = -1.0
         # 定义点云字段
         fields = [
-            PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
-            PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
-            PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
+            PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
         ]
 
         # 创建ROS2 PointCloud2消息
@@ -75,15 +70,15 @@ class OnnxControllerRos2(OnnxController, Node):
 
     def get_site_tmat(self, mj_data, site_name):
         tmat = np.eye(4)
-        tmat[:3,:3] = mj_data.site(site_name).xmat.reshape((3,3))
-        tmat[:3,3] = mj_data.site(site_name).xpos
+        tmat[:3, :3] = mj_data.site(site_name).xmat.reshape((3, 3))
+        tmat[:3, 3] = mj_data.site(site_name).xpos
         return tmat
 
     def update_ros2(self, mj_data: mujoco.MjData) -> None:
         time_stamp = self.get_clock().now().to_msg()
         if not self.pub_staticc_tf_once:
             self.pub_staticc_tf_once = True
-            self.publish_static_transform(mj_data, 'imu_in_pelvis', 'lidar')
+            self.publish_static_transform(mj_data, "imu_in_pelvis", "lidar")
         self.publish_tf(mj_data, time_stamp)
         self.publish_lidar(mj_data, time_stamp)
 
@@ -96,7 +91,7 @@ class OnnxControllerRos2(OnnxController, Node):
         tmat_base = self.get_site_tmat(mj_data, header_frame_id)
         tmat_child = self.get_site_tmat(mj_data, child_frame_id)
         tmat_trans = np.linalg.inv(tmat_base) @ tmat_child
-        
+
         stfs_msg.transform.translation.x = tmat_trans[0, 3]
         stfs_msg.transform.translation.y = tmat_trans[1, 3]
         stfs_msg.transform.translation.z = tmat_trans[2, 3]
@@ -113,7 +108,7 @@ class OnnxControllerRos2(OnnxController, Node):
         if self.last_pub_time_tf > mj_data.time:
             self.last_pub_time_tf = mj_data.time
             return
-        if mj_data.time - self.last_pub_time_tf < 1. / 10.:
+        if mj_data.time - self.last_pub_time_tf < 1.0 / 10.0:
             return
         self.last_pub_time_tf = mj_data.time
 
@@ -134,7 +129,7 @@ class OnnxControllerRos2(OnnxController, Node):
         if self.last_pub_time_lidar > mj_data.time:
             self.last_pub_time_lidar = mj_data.time
             return
-        if mj_data.time - self.last_pub_time_lidar < 1. / 10.:
+        if mj_data.time - self.last_pub_time_lidar < 1.0 / 10.0:
             return
         self.last_pub_time_lidar = mj_data.time
 
@@ -154,13 +149,12 @@ class OnnxControllerRos2(OnnxController, Node):
         self.update_ros2(data)
         super().get_control(model, data)
 
+
 def load_callback(model=None, data=None):
     global args
     mujoco.set_mjcb_control(None)
 
-    model = mujoco.MjModel.from_xml_path(
-        _MJCF_PATH.as_posix()
-    )
+    model = mujoco.MjModel.from_xml_path(_MJCF_PATH.as_posix())
     data = mujoco.MjData(model)
 
     mujoco.mj_resetDataKeyframe(model, data, 0)
@@ -173,7 +167,7 @@ def load_callback(model=None, data=None):
     policy = OnnxControllerRos2(
         model,
         policy_path=(_ONNX_DIR / "g1_policy.onnx").as_posix(),
-        default_angles=np.array(model.keyframe("home").qpos[7:7+_JOINT_NUM]),
+        default_angles=np.array(model.keyframe("home").qpos[7 : 7 + _JOINT_NUM]),
         ctrl_dt=ctrl_dt,
         n_substeps=n_substeps,
         action_scale=0.5,
@@ -184,9 +178,16 @@ def load_callback(model=None, data=None):
 
     return model, data
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='MuJoCo LiDAR可视化与Unitree G1 ROS2集成')
-    parser.add_argument('--lidar', type=str, default='mid360', help='LiDAR型号 (airy, mid360)', choices=['airy', 'mid360'])
+    parser = argparse.ArgumentParser(description="MuJoCo LiDAR可视化与Unitree G1 ROS2集成")
+    parser.add_argument(
+        "--lidar",
+        type=str,
+        default="mid360",
+        help="LiDAR型号 (airy, mid360)",
+        choices=["airy", "mid360"],
+    )
     args = parser.parse_args()
 
     rclpy.init()
@@ -196,10 +197,10 @@ if __name__ == "__main__":
     cmd = f"rviz2 -d {folder_path}/./config/g1.rviz"
     print(f"正在启动rviz2可视化:\n{cmd}")
     print("=" * 60)
-    
+
     # 启动 rviz2 进程
     rviz_process = subprocess.Popen(cmd, shell=True, preexec_fn=os.setsid)
-    
+
     try:
         viewer.launch(loader=load_callback)
     except:

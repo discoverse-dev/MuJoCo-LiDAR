@@ -1,10 +1,11 @@
 import time
-import numpy as np
-from etils import epath
-import matplotlib.pyplot as plt
 
+import matplotlib.pyplot as plt
 import mujoco
 import mujoco.viewer
+import numpy as np
+from etils import epath
+
 from mujoco_lidar import MjLidarWrapper, scan_gen
 
 if __name__ == "__main__":
@@ -16,14 +17,13 @@ if __name__ == "__main__":
     n_substeps = int(round(1.0 / (mj_model.opt.timestep * update_rate)))
     print(f"n_substeps = {n_substeps}")
 
-    lidar = MjLidarWrapper(mj_model, "lidar_site", args={"bodyexclude":mj_model.body("your_robot_name").id})
+    lidar = MjLidarWrapper(
+        mj_model, "lidar_site", args={"bodyexclude": mj_model.body("your_robot_name").id}
+    )
     livox_generator = scan_gen.LivoxGenerator("mid360")
     rays_theta, rays_phi = livox_generator.sample_ray_angles()
 
-    with mujoco.viewer.launch_passive(
-        mj_model, 
-        mj_data
-    ) as viewer:
+    with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         viewer.user_scn.ngeom = rays_theta.shape[0]
         for i in range(viewer.user_scn.ngeom):
             mujoco.mjv_initGeom(
@@ -32,12 +32,12 @@ if __name__ == "__main__":
                 size=[0.02, 0, 0],
                 pos=[0, 0, 0],
                 mat=np.eye(3).flatten(),
-                rgba=np.array([1, 0, 0, 0.8])
+                rgba=np.array([1, 0, 0, 0.8]),
             )
 
         print("Starting simulation...")
         print("Number of rays:", rays_theta.shape[0])
-        cmap = plt.get_cmap('hsv')  # 或使用 'jet', 'viridis', 'plasma' 等
+        cmap = plt.get_cmap("hsv")  # 或使用 'jet', 'viridis', 'plasma' 等
 
         _last_time = 1e6
         while viewer.is_running():
@@ -63,7 +63,7 @@ if __name__ == "__main__":
                     z_norm = (z_values - z_min) / (z_max - z_min)
                 else:
                     z_norm = np.zeros_like(z_values)
-                
+
                 # 使用 matplotlib 颜色映射
                 colors = cmap(z_norm)  # 返回 RGBA 值，shape: (N, 4)
 
