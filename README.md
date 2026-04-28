@@ -132,10 +132,11 @@ MIT License - see [LICENSE](LICENSE) for details.
 If you use this project in your research, please cite:
 
 ```bibtex
-@software{mujoco_lidar,
-  title = {MuJoCo-LiDAR: High-Performance LiDAR Simulation},
-  author = {Yufei Jia},
-  year = {2024},
-  url = {https://github.com/TATP-233/MuJoCo-LiDAR}
+@article{jia2025discoverse,
+      title={DISCOVERSE: Efficient Robot Simulation in Complex High-Fidelity Environments},
+      author={Yufei Jia and Guangyu Wang and Yuhang Dong and Junzhe Wu and Yupei Zeng and Haonan Lin and Zifan Wang and Haizhou Ge and Weibin Gu and Chuxuan Li and Ziming Wang and Yunjie Cheng and Wei Sui and Ruqi Huang and Guyue Zhou},
+      journal={arXiv preprint arXiv:2507.21981},
+      year={2025},
+      url={https://arxiv.org/abs/2507.21981}
 }
 ```
