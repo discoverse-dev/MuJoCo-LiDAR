@@ -1,7 +1,7 @@
 .PHONY: help install test test-cov lint format check benchmark clean
 
-# Use python3.10 which has pre-built mujoco wheels
 UV_RUN := uv run --python python3.10
+UV_RUN_DEV := $(UV_RUN) --extra dev
 
 help:
 	@echo "MuJoCo-LiDAR Development Commands"
@@ -19,17 +19,17 @@ install:
 	uv sync --extra dev
 
 test:
-	$(UV_RUN) pytest tests/ -v
+	$(UV_RUN_DEV) python -m pytest tests/ -v
 
 test-cov:
-	$(UV_RUN) pytest tests/ -v --cov=mujoco_lidar --cov-report=html --cov-report=term
+	$(UV_RUN_DEV) python -m pytest tests/ -v --cov=mujoco_lidar --cov-report=html --cov-report=term
 
 lint:
-	$(UV_RUN) ruff check .
+	$(UV_RUN_DEV) python -m ruff check .
 
 format:
-	$(UV_RUN) ruff format .
-	$(UV_RUN) ruff check --fix .
+	$(UV_RUN_DEV) python -m ruff format .
+	$(UV_RUN_DEV) python -m ruff check --fix .
 
 check: lint test
 
