@@ -42,9 +42,23 @@ def update_aabbs_kernel(
         lower = wp.vec3(0.0, 0.0, 0.0)
         upper = wp.vec3(0.0, 0.0, 0.0)
     elif geom_type == 0:
+        # MuJoCo's "infinite" plane convention is size[0] == size[1] == 0.0 (the
+        # intersection test in ray_plane_distance already special-cases this as
+        # unbounded). Using that literal 0 as the AABB half-extent instead makes
+        # the plane's broad-phase bounding box razor-thin, so the BVH culls
+        # almost every ray before the intersection test ever runs - the ground
+        # becomes effectively invisible while finite geoms (legs, boxes) are
+        # unaffected. Substitute a large-but-finite half-extent for the AABB
+        # only, so the BVH actually considers rays anywhere near the ground.
+        plane_x = geom_sizes[geom_id][0]
+        plane_y = geom_sizes[geom_id][1]
+        if plane_x <= 0.0:
+            plane_x = 1000.0
+        if plane_y <= 0.0:
+            plane_y = 1000.0
         lower, upper = compute_oriented_box_aabb(
             pos,
-            wp.vec3(geom_sizes[geom_id][0], geom_sizes[geom_id][1], 1.0e-3),
+            wp.vec3(plane_x, plane_y, 1.0e-3),
             rot,
         )
     else:
@@ -79,9 +93,18 @@ def update_aabbs_batch_kernel(
         lower = wp.vec3(0.0, 0.0, 0.0)
         upper = wp.vec3(0.0, 0.0, 0.0)
     elif geom_type == 0:
+        # See the identical branch in update_aabbs_kernel for why a literal 0
+        # (MuJoCo's "infinite plane" convention) must not be used as the AABB
+        # half-extent.
+        plane_x = geom_sizes[geom_id][0]
+        plane_y = geom_sizes[geom_id][1]
+        if plane_x <= 0.0:
+            plane_x = 1000.0
+        if plane_y <= 0.0:
+            plane_y = 1000.0
         lower, upper = compute_oriented_box_aabb(
             pos,
-            wp.vec3(geom_sizes[geom_id][0], geom_sizes[geom_id][1], 1.0e-3),
+            wp.vec3(plane_x, plane_y, 1.0e-3),
             rot,
         )
     else:
